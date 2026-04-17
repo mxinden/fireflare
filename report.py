@@ -19,14 +19,20 @@ REPORT = RESULTS / "report.html"
 def load_runs() -> list[dict]:
     runs = []
     for p in sorted(RESULTS.glob("*.json")):
-        config, _, ts = p.stem.partition("-")
+        _, _, ts = p.stem.partition("-")
         runs.append({
-            "label": f"{config} @ {ts}",
-            "config": config,
+            "label": ts or p.stem,
             "ts": ts,
             **json.loads(p.read_text()),
         })
     return runs
+
+
+def fmt_bytes(n: float) -> str:
+    for unit, scale in [("GB", 1e9), ("MB", 1e6), ("kB", 1e3)]:
+        if n >= scale:
+            return f"{n / scale:g} {unit}"
+    return f"{int(n)} B"
 
 
 def summary_table(runs: list[dict]) -> str:
@@ -49,24 +55,46 @@ def summary_table(runs: list[dict]) -> str:
     return f"<table><thead><tr>{thead}</tr></thead><tbody>{rows}</tbody></table>"
 
 
-def fig_bandwidth_points(runs: list[dict]) -> go.Figure:
+def fig_bandwidth_boxes(runs: list[dict], points_key: str, title: str) -> go.Figure:
+    """One boxplot per size bucket; runs overlay as colored traces."""
+    # Preserve size ordering across runs (smallest → largest).
+    sizes = sorted({p["bytes"] for r in runs for p in r.get(points_key) or []})
+    size_labels = [fmt_bytes(s) for s in sizes]
     fig = go.Figure()
     for r in runs:
-        for key, suffix in [("downloadBandwidthPoints", "down"),
-                            ("uploadBandwidthPoints", "up")]:
-            pts = r.get(key) or []
-            if not pts:
-                continue
-            fig.add_scatter(
-                name=f"{r['label']} {suffix}",
-                x=[p["transferSize"] for p in pts],
-                y=[p["bps"] / 1e6 for p in pts],
-                mode="markers",
-            )
+        by_size: dict[int, list[float]] = {s: [] for s in sizes}
+        for p in r.get(points_key) or []:
+            by_size[p["bytes"]].append(p["bps"] / 1e6)
+        xs, ys = [], []
+        for s in sizes:
+            xs.extend([fmt_bytes(s)] * len(by_size[s]))
+            ys.extend(by_size[s])
+        fig.add_box(name=r["label"], x=xs, y=ys, boxpoints="all", jitter=0.3)
     fig.update_layout(
-        xaxis_type="log", xaxis_title="transfer size (bytes, log)",
-        yaxis_title="Mbps",
-        title="Per-request bandwidth vs. transfer size",
+        title=title, yaxis_title="Mbps", boxmode="group",
+        xaxis=dict(categoryorder="array", categoryarray=size_labels),
+    )
+    return fig
+
+
+def fig_latency_boxes(runs: list[dict]) -> go.Figure:
+    buckets = [
+        ("unloaded",       "unloadedLatencyPoints"),
+        ("during download", "downLoadedLatencyPoints"),
+        ("during upload",   "upLoadedLatencyPoints"),
+    ]
+    fig = go.Figure()
+    for r in runs:
+        xs, ys = [], []
+        for label, key in buckets:
+            vals = r.get(key) or []
+            xs.extend([label] * len(vals))
+            ys.extend(vals)
+        fig.add_box(name=r["label"], x=xs, y=ys, boxpoints="all", jitter=0.3)
+    fig.update_layout(
+        title="Latency", yaxis_title="ms", boxmode="group",
+        xaxis=dict(categoryorder="array",
+                   categoryarray=[b[0] for b in buckets]),
     )
     return fig
 
@@ -85,9 +113,14 @@ def main() -> None:
     if not runs:
         raise SystemExit("no JSON runs in results/")
 
-    chart = fig_bandwidth_points(runs).to_html(
-        include_plotlyjs="inline", full_html=False
-    )
+    figs = [
+        fig_bandwidth_boxes(runs, "downloadBandwidthPoints", "Download by transfer size"),
+        fig_bandwidth_boxes(runs, "uploadBandwidthPoints",   "Upload by transfer size"),
+        fig_latency_boxes(runs),
+    ]
+    parts = [figs[0].to_html(include_plotlyjs="inline", full_html=False)]
+    for fig in figs[1:]:
+        parts.append(fig.to_html(include_plotlyjs=False, full_html=False))
 
     html_out = (
         "<!doctype html><html><head><meta charset='utf-8'>"
@@ -95,7 +128,7 @@ def main() -> None:
         f"<style>{STYLE}</style></head><body>"
         f"<h1>fireflare — {len(runs)} run(s)</h1>"
         + summary_table(runs)
-        + chart
+        + "".join(parts)
         + "</body></html>"
     )
     REPORT.write_text(html_out)

@@ -71,6 +71,9 @@ st.onFinish = (results) => {
     uploadBandwidth: results.getUploadBandwidth(),
     downloadBandwidthPoints: results.getDownloadBandwidthPoints(),
     uploadBandwidthPoints: results.getUploadBandwidthPoints(),
+    unloadedLatencyPoints: results.getUnloadedLatencyPoints(),
+    downLoadedLatencyPoints: results.getDownLoadedLatencyPoints(),
+    upLoadedLatencyPoints: results.getUpLoadedLatencyPoints(),
   };
   window.__fireflare_result = out;
   log.textContent = JSON.stringify(out, null, 2);
