@@ -7,5 +7,6 @@ license = "MIT OR Apache-2.0"
 license-files = ["LICENSE-MIT", "LICENSE-APACHE"]
 requires-python = ">=3.11"
 dependencies = [
+    "plotly>=6.7.0",
     "selenium>=4.43.0",
 ]
