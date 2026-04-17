@@ -1,6 +1,6 @@
 # fireflare
 
-Automates Firefox Nightly running [speed.cloudflare.com](https://speed.cloudflare.com/) and saves the CSV results.
+Drives Firefox Nightly to run the [`@cloudflare/speedtest`](https://github.com/cloudflare/speedtest) library (loaded from esm.sh via a local HTML page) and saves structured JSON results.
 
 ## Status
 
@@ -24,4 +24,4 @@ Firefox Nightly and geckodriver are downloaded on first run into `.cache/`.
 uv run main.py
 ```
 
-Output CSVs land in `results/`, named `direct-<utc-timestamp>-<original>.csv`.
+Output JSON files land in `results/`, named `direct-<utc-timestamp>.json`.

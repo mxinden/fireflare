@@ -1,4 +1,5 @@
-"""Fireflare: run speed.cloudflare.com in Firefox Nightly and save the CSV.
+"""Fireflare: Firefox Nightly runs @cloudflare/speedtest and we save its
+structured results as JSON.
 
 Direct (no proxy) baseline. HTTP CONNECT + MASQUE configs are future phases.
 """
@@ -11,18 +12,16 @@ import shutil
 import subprocess
 import sys
 import tarfile
+import threading
 import time
 import urllib.request
 from datetime import datetime, timezone
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 from selenium import webdriver
-from selenium.common.exceptions import TimeoutException
-from selenium.webdriver.common.by import By
 from selenium.webdriver.firefox.options import Options
 from selenium.webdriver.firefox.service import Service
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.support.ui import WebDriverWait
 
 ROOT = Path(__file__).parent
 CACHE = ROOT / ".cache"
@@ -35,6 +34,54 @@ FIREFOX_NIGHTLY_URL = (
 GECKODRIVER_LATEST_API = (
     "https://api.github.com/repos/mozilla/geckodriver/releases/latest"
 )
+
+SPEEDTEST_HTML = """\
+<!doctype html>
+<html><head><meta charset="utf-8"><title>fireflare</title></head>
+<body>
+<pre id="log">running @cloudflare/speedtest...</pre>
+<script type="module">
+import SpeedTest from 'https://esm.sh/@cloudflare/speedtest';
+const log = document.getElementById('log');
+// Verbatim from @cloudflare/speedtest's defaultConfig, minus the packetLoss
+// entry (which needs a TURN server we don't provide).
+// Source: cloudflare/speedtest src/config/defaultConfig.js
+const st = new SpeedTest({
+  measurements: [
+    { type: 'latency', numPackets: 1 },
+    { type: 'download', bytes: 1e5, count: 1, bypassMinDuration: true },
+    { type: 'latency', numPackets: 20 },
+    { type: 'download', bytes: 1e5, count: 9 },
+    { type: 'download', bytes: 1e6, count: 8 },
+    { type: 'upload', bytes: 1e5, count: 8 },
+    { type: 'upload', bytes: 1e6, count: 6 },
+    { type: 'download', bytes: 1e7, count: 6 },
+    { type: 'upload', bytes: 1e7, count: 4 },
+    { type: 'download', bytes: 2.5e7, count: 4 },
+    { type: 'upload', bytes: 2.5e7, count: 4 },
+    { type: 'download', bytes: 1e8, count: 3 },
+    { type: 'upload', bytes: 5e7, count: 3 },
+    { type: 'download', bytes: 2.5e8, count: 2 },
+  ],
+});
+st.onFinish = (results) => {
+  const out = {
+    summary: results.getSummary(),
+    downloadBandwidth: results.getDownloadBandwidth(),
+    uploadBandwidth: results.getUploadBandwidth(),
+    downloadBandwidthPoints: results.getDownloadBandwidthPoints(),
+    uploadBandwidthPoints: results.getUploadBandwidthPoints(),
+  };
+  window.__fireflare_result = out;
+  log.textContent = JSON.stringify(out, null, 2);
+};
+st.onError = (err) => {
+  window.__fireflare_error = String((err && err.message) || err);
+  log.textContent = 'error: ' + window.__fireflare_error;
+};
+</script>
+</body></html>
+"""
 
 
 def require_linux_x86_64() -> None:
@@ -58,7 +105,6 @@ def ensure_firefox() -> Path:
         return binary
 
     print("Fetching Firefox Nightly...")
-    # Follow redirect to learn the actual filename (for tar.xz vs tar.bz2).
     req = urllib.request.Request(FIREFOX_NIGHTLY_URL, method="HEAD")
     with urllib.request.urlopen(req) as resp:
         final_url = resp.url
@@ -70,7 +116,6 @@ def ensure_firefox() -> Path:
     if install_dir.exists():
         shutil.rmtree(install_dir)
     CACHE.mkdir(parents=True, exist_ok=True)
-    # Tarball contains a top-level `firefox/` dir.
     with tarfile.open(archive) as tf:
         tf.extractall(CACHE)
     archive.unlink()
@@ -113,102 +158,44 @@ def firefox_version(firefox: Path) -> str:
     return out.stdout.strip()
 
 
-def build_driver(firefox: Path, geckodriver: Path, download_dir: Path) -> webdriver.Firefox:
+def build_driver(firefox: Path, geckodriver: Path) -> webdriver.Firefox:
     options = Options()
     options.binary_location = str(firefox)
     # Headed so progress is visible during local development. Flip for CI.
-
-    # Force downloads to our results dir without a prompt.
-    options.set_preference("browser.download.folderList", 2)
-    options.set_preference("browser.download.dir", str(download_dir))
-    options.set_preference("browser.download.useDownloadDir", True)
-    options.set_preference("browser.download.manager.showWhenStarting", False)
-    options.set_preference(
-        "browser.helperApps.neverAsk.saveToDisk",
-        "text/csv,application/csv,application/octet-stream,text/plain",
-    )
-
     service = Service(executable_path=str(geckodriver))
     return webdriver.Firefox(service=service, options=options)
 
 
-def run_speedtest(driver: webdriver.Firefox, download_dir: Path) -> Path:
-    """Run speed.cloudflare.com and return the path to the saved CSV."""
-    before = set(download_dir.glob("*"))
+class _PageHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.end_headers()
+        self.wfile.write(SPEEDTEST_HTML.encode("utf-8"))
 
-    driver.get("https://speed.cloudflare.com/")
+    def log_message(self, *_args):
+        pass
 
-    # A fresh profile shows a consent dialog with a "Start" button before the
-    # test will run.
-    start_wait = WebDriverWait(driver, 30)
-    start_btn = start_wait.until(
-        EC.element_to_be_clickable((
-            By.XPATH, "//button[normalize-space()='Start']",
-        ))
-    )
-    start_btn.click()
-    print("Clicked Start, waiting for results...")
 
-    # The test runs ~30–60s. The CSV export is an icon-only control: a
-    # download-arrow SVG wrapped in a clickable div. We locate the SVG by
-    # its path 'd' attribute (surrounding CSS classes are hashed and change
-    # between deploys) and click the nearest enclosing div via JS so the
-    # React handler fires regardless of which ancestor owns it.
-    # The download icon's wrapping structure looks like:
-    #   <div data-tooltip-id="single_tooltip_N">
-    #     <div class="...">
-    #       <div class="...">
-    #         <svg><path d="M11.962 7.442..."/></svg>
-    # The tooltip-id wrapper is where React attaches the click handler. We
-    # match the path 'd' attribute because the surrounding CSS classes are
-    # hashed and change between deploys.
-    # Locate the CSV button via JS: find the download-arrow SVG path (its
-    # 'd' attribute is stable; wrapping CSS classes are hashed) and return
-    # the first child div of the data-tooltip-id wrapper — that's the
-    # element carrying the React onClick.
-    find_btn_js = """
-        const paths = document.querySelectorAll('svg path');
-        for (const p of paths) {
-            const d = p.getAttribute('d');
-            if (d && d.startsWith('M11.962 7.442')) {
-                const wrapper = p.closest('[data-tooltip-id]');
-                return wrapper ? wrapper.querySelector(':scope > div') : null;
-            }
-        }
-        return null;
-    """
-    print("Waiting for CSV download button...")
-    try:
-        btn = WebDriverWait(driver, 300, poll_frequency=1).until(
-            lambda d: d.execute_script(find_btn_js)
-        )
-    except TimeoutException:
-        sys.exit(
-            "Timed out waiting for the CSV download button on speed.cloudflare.com. "
-            "The page UI may have changed — inspect it and adjust find_btn_js "
-            "in run_speedtest()."
-        )
-    print("Clicking CSV download button...")
-    driver.execute_script("arguments[0].click();", btn)
+def serve_page() -> tuple[ThreadingHTTPServer, str]:
+    server = ThreadingHTTPServer(("127.0.0.1", 0), _PageHandler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    port = server.server_address[1]
+    return server, f"http://127.0.0.1:{port}/"
 
-    # Wait for a new file to appear and for any .part to disappear.
-    deadline = time.monotonic() + 30
-    new_file: Path | None = None
+
+def collect_results(driver: webdriver.Firefox, url: str, timeout_s: int = 300) -> dict:
+    driver.get(url)
+    deadline = time.monotonic() + timeout_s
     while time.monotonic() < deadline:
-        current = set(download_dir.glob("*"))
-        added = [p for p in current - before if not p.name.endswith(".part")]
-        if added and not any(p.name.endswith(".part") for p in current):
-            new_file = added[0]
-            break
-        time.sleep(0.5)
-    if new_file is None:
-        sys.exit("CSV download did not complete within 30s")
-
-    # Rename to a timestamped, config-tagged filename.
-    ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    final = download_dir / f"direct-{ts}-{new_file.name}"
-    new_file.rename(final)
-    return final
+        err = driver.execute_script("return window.__fireflare_error || null;")
+        if err:
+            sys.exit(f"speed test error: {err}")
+        result = driver.execute_script("return window.__fireflare_result || null;")
+        if result is not None:
+            return result
+        time.sleep(1)
+    sys.exit(f"speed test did not complete within {timeout_s}s")
 
 
 def main() -> None:
@@ -220,13 +207,20 @@ def main() -> None:
     geckodriver = ensure_geckodriver()
     print(f"Using {firefox_version(firefox)}")
 
-    driver = build_driver(firefox, geckodriver, RESULTS.resolve())
+    server, url = serve_page()
+    driver = build_driver(firefox, geckodriver)
     try:
-        csv_path = run_speedtest(driver, RESULTS.resolve())
+        print(f"Serving {url}")
+        print("Running speed test...")
+        result = collect_results(driver, url)
     finally:
         driver.quit()
+        server.shutdown()
 
-    print(f"Saved {csv_path.relative_to(ROOT)}")
+    ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    out_path = RESULTS / f"direct-{ts}.json"
+    out_path.write_text(json.dumps(result, indent=2))
+    print(f"Saved {out_path.relative_to(ROOT)}")
 
 
 if __name__ == "__main__":
