@@ -25,3 +25,12 @@ uv run main.py
 ```
 
 Output JSON files land in `results/`, named `direct-<utc-timestamp>.json`.
+
+## License
+
+Licensed under either of
+
+- Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
+- MIT License ([LICENSE-MIT](LICENSE-MIT))
+
+at your option.

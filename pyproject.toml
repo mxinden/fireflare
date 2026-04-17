@@ -1,10 +1,11 @@
 [project]
 name = "fireflare"
 version = "0.1.0"
-description = "Add your description here"
+description = "Drive Firefox Nightly through @cloudflare/speedtest for reproducible MASQUE benchmarks"
 readme = "README.md"
+license = "MIT OR Apache-2.0"
+license-files = ["LICENSE-MIT", "LICENSE-APACHE"]
 requires-python = ">=3.11"
 dependencies = [
-    "requests>=2.33.1",
     "selenium>=4.43.0",
 ]
