@@ -6,6 +6,7 @@ Direct (no proxy) baseline. HTTP CONNECT + MASQUE configs are future phases.
 
 from __future__ import annotations
 
+import argparse
 import json
 import platform
 import shutil
@@ -43,25 +44,33 @@ SPEEDTEST_HTML = """\
 <script type="module">
 import SpeedTest from 'https://esm.sh/@cloudflare/speedtest';
 const log = document.getElementById('log');
-// Verbatim from @cloudflare/speedtest's defaultConfig, minus the packetLoss
-// entry (which needs a TURN server we don't provide).
+// Based on @cloudflare/speedtest's defaultConfig. Packet-loss entry dropped
+// (needs a TURN server). Counts roughly doubled for a tighter distribution
+// per bucket — ~2× total runtime.
 // Source: cloudflare/speedtest src/config/defaultConfig.js
+const h3 = new URLSearchParams(location.search).has('h3');
+const endpointOverrides = h3 ? {
+  downloadApiUrl: 'https://h3.speed.cloudflare.com/__down',
+  uploadApiUrl:   'https://h3.speed.cloudflare.com/__up',
+} : {};
 const st = new SpeedTest({
+  ...endpointOverrides,
+  loadedLatencyMaxPoints: 50,
   measurements: [
     { type: 'latency', numPackets: 1 },
     { type: 'download', bytes: 1e5, count: 1, bypassMinDuration: true },
-    { type: 'latency', numPackets: 20 },
-    { type: 'download', bytes: 1e5, count: 9 },
-    { type: 'download', bytes: 1e6, count: 8 },
-    { type: 'upload', bytes: 1e5, count: 8 },
-    { type: 'upload', bytes: 1e6, count: 6 },
-    { type: 'download', bytes: 1e7, count: 6 },
-    { type: 'upload', bytes: 1e7, count: 4 },
-    { type: 'download', bytes: 2.5e7, count: 4 },
-    { type: 'upload', bytes: 2.5e7, count: 4 },
-    { type: 'download', bytes: 1e8, count: 3 },
-    { type: 'upload', bytes: 5e7, count: 3 },
-    { type: 'download', bytes: 2.5e8, count: 2 },
+    { type: 'latency', numPackets: 50 },
+    { type: 'download', bytes: 1e5, count: 15 },
+    { type: 'download', bytes: 1e6, count: 15 },
+    { type: 'upload', bytes: 1e5, count: 15 },
+    { type: 'upload', bytes: 1e6, count: 12 },
+    { type: 'download', bytes: 1e7, count: 12 },
+    { type: 'upload', bytes: 1e7, count: 8 },
+    { type: 'download', bytes: 2.5e7, count: 8 },
+    { type: 'upload', bytes: 2.5e7, count: 8 },
+    { type: 'download', bytes: 1e8, count: 6 },
+    { type: 'upload', bytes: 5e7, count: 6 },
+    { type: 'download', bytes: 2.5e8, count: 4 },
   ],
 });
 st.onFinish = (results) => {
@@ -202,6 +211,13 @@ def collect_results(driver: webdriver.Firefox, url: str, timeout_s: int = 300) -
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument(
+        "--h3", action="store_true",
+        help="route the test through h3.speed.cloudflare.com (forces HTTP/3)",
+    )
+    args = parser.parse_args()
+
     require_linux_x86_64()
     CACHE.mkdir(exist_ok=True)
     RESULTS.mkdir(exist_ok=True)
@@ -210,7 +226,8 @@ def main() -> None:
     geckodriver = ensure_geckodriver()
     print(f"Using {firefox_version(firefox)}")
 
-    server, url = serve_page()
+    server, base_url = serve_page()
+    url = base_url + ("?h3=1" if args.h3 else "")
     driver = build_driver(firefox, geckodriver)
     try:
         print(f"Serving {url}")
@@ -221,7 +238,8 @@ def main() -> None:
         server.shutdown()
 
     ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    out_path = RESULTS / f"direct-{ts}.json"
+    tag = "direct-h3" if args.h3 else "direct"
+    out_path = RESULTS / f"{tag}-{ts}.json"
     out_path.write_text(json.dumps(result, indent=2))
     print(f"Saved {out_path.relative_to(ROOT)}")
 

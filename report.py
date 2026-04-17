@@ -19,9 +19,12 @@ REPORT = RESULTS / "report.html"
 def load_runs() -> list[dict]:
     runs = []
     for p in sorted(RESULTS.glob("*.json")):
-        _, _, ts = p.stem.partition("-")
+        # Filenames look like `<tag>-<timestamp>.json` where <tag> may itself
+        # contain dashes (e.g. `direct-h3`). Split off the trailing timestamp.
+        tag, _, ts = p.stem.rpartition("-")
         runs.append({
-            "label": ts or p.stem,
+            "label": f"{tag} {ts}" if tag else p.stem,
+            "tag": tag,
             "ts": ts,
             **json.loads(p.read_text()),
         })
