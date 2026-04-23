@@ -51,7 +51,7 @@ const log = document.getElementById('log');
 // per bucket — ~2× total runtime.
 // Source: cloudflare/speedtest src/config/defaultConfig.js
 const h3 = new URLSearchParams(location.search).has('h3');
-const apiBase = h3 ? 'https://h3.speed.cloudflare.com' : 'https://speed.cloudflare.com';
+const apiBase = h3 ? 'https://bastion.h3.speed.cloudflare.com' : 'https://speed.cloudflare.com';
 const endpointOverrides = h3 ? {
   downloadApiUrl: apiBase + '/__down',
   uploadApiUrl:   apiBase + '/__up',
@@ -243,7 +243,7 @@ def build_driver(firefox: Path, geckodriver: Path) -> webdriver.Firefox:
         "browser.ipProtection.inclusion.match_patterns",
         json.dumps([
             "*://speed.cloudflare.com/*",
-            "*://h3.speed.cloudflare.com/*",
+            "*://bastion.h3.speed.cloudflare.com/*",
         ]),
     )
     # Clear LD_LIBRARY_PATH inherited from the parent shell: Firefox devs

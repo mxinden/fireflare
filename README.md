@@ -5,7 +5,7 @@ Drives Firefox Nightly to run the [`@cloudflare/speedtest`](https://github.com/c
 ## Status
 
 - **Direct baseline** — works (`uv run main.py`).
-- **HTTP/3 variant** — works (`uv run main.py --h3`, points the library at `h3.speed.cloudflare.com`).
+- **HTTP/3 variant** — works (`uv run main.py --h3`, points the library at `bastion.h3.speed.cloudflare.com`).
 - **In-browser VPN (IP protection)** — works (`uv run main.py --vpn`), routes speedtest traffic through Firefox's IP protection / Fastly proxy. Today it's HTTP CONNECT over TCP, so `--vpn --h3` silently downgrades to HTTP/2 over the tunnel; actual MASQUE connect-udp support will come later.
 
 ## Requirements
