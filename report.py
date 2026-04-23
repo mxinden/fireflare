@@ -39,8 +39,12 @@ def fmt_bytes(n: float) -> str:
 
 
 def summary_table(runs: list[dict]) -> str:
+    def trace(r: dict, key: str) -> str:
+        return (r.get("trace") or {}).get(key, "—")
     cols = [
         ("run", lambda r: r["label"]),
+        ("colo",          lambda r: trace(r, "colo")),
+        ("client ip",     lambda r: trace(r, "ip")),
         ("download (Mbps)", lambda r: f"{r['summary']['download'] / 1e6:.1f}"),
         ("upload (Mbps)",   lambda r: f"{r['summary']['upload']   / 1e6:.1f}"),
         ("latency idle (ms)",     lambda r: f"{r['summary']['latency']:.1f}"),
