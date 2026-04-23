@@ -403,13 +403,13 @@ def main() -> None:
         server.shutdown()
 
     ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    parts = ["direct"]
+    parts = []
     if args.vpn:
         parts.append("vpn")
     if args.h3:
         parts.append("h3")
-    tag = "-".join(parts)
-    out_path = RESULTS / f"{tag}-{ts}.json"
+    parts.append(ts)
+    out_path = RESULTS / ("-".join(parts) + ".json")
     out_path.write_text(json.dumps(result, indent=2))
     print(f"Saved {out_path.relative_to(ROOT)}")
 
