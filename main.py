@@ -7,6 +7,7 @@ Direct (no proxy) baseline. HTTP CONNECT + MASQUE configs are future phases.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import platform
@@ -34,6 +35,14 @@ FIREFOX_NIGHTLY_URL = (
     "https://download.mozilla.org/?product=firefox-nightly-latest-ssl"
     "&os=linux64&lang=en-US"
 )
+# Linux64 opt build of the try push that adds HTTP/3 / MASQUE outer-connection
+# support for the IP-protection proxy. Used by `--custom-firefox`.
+# Try rev: 36ec3f22bab69b8ca3cb77744dd4aea1a8e386d2 — "Use http/3 for the
+# outer connection to the VPN server".
+FIREFOX_CUSTOM_URL = (
+    "https://firefox-ci-tc.services.mozilla.com/api/queue/v1/task/"
+    "IXM7-6-GTRS0J7_iPeHfqw/runs/0/artifacts/public/build/target.tar.xz"
+)
 GECKODRIVER_LATEST_API = (
     "https://api.github.com/repos/mozilla/geckodriver/releases/latest"
 )
@@ -54,31 +63,50 @@ def download(url: str, dest: Path) -> None:
         shutil.copyfileobj(resp, out)
 
 
-def ensure_firefox() -> Path:
-    """Download Firefox Nightly if not cached. Return path to the binary."""
-    install_dir = CACHE / "firefox"
+def ensure_firefox(url: str = FIREFOX_NIGHTLY_URL) -> Path:
+    """Download a Firefox build if not cached. Return path to the binary.
+
+    Default downloads the current Linux x86_64 Nightly. Pass a different URL
+    (e.g. a Taskcluster try-build artifact) to use a custom build; the cache
+    key is derived from the URL so swapping between builds doesn't redownload.
+    """
+    if url == FIREFOX_NIGHTLY_URL:
+        install_dir = CACHE / "firefox"
+        label = "Firefox Nightly"
+    else:
+        key = hashlib.sha1(url.encode()).hexdigest()[:12]
+        install_dir = CACHE / f"firefox-{key}"
+        label = f"Firefox build ({url})"
     binary = install_dir / "firefox"
     if binary.exists():
         return binary
 
-    print("Fetching Firefox Nightly...")
-    req = urllib.request.Request(FIREFOX_NIGHTLY_URL, method="HEAD")
+    print(f"Fetching {label}...")
+    req = urllib.request.Request(url, method="HEAD")
     with urllib.request.urlopen(req) as resp:
         final_url = resp.url
     suffix = ".tar.xz" if final_url.endswith(".tar.xz") else ".tar.bz2"
-    archive = CACHE / f"firefox-nightly{suffix}"
+    archive = CACHE / f"{install_dir.name}{suffix}"
     download(final_url, archive)
 
     print(f"  extracting to {install_dir}")
     if install_dir.exists():
         shutil.rmtree(install_dir)
     CACHE.mkdir(parents=True, exist_ok=True)
+    # The tarball contains a top-level `firefox/` dir. Extract into a staging
+    # dir so we can install into an install_dir whose name doesn't match.
+    staging = CACHE / f".staging-{install_dir.name}"
+    if staging.exists():
+        shutil.rmtree(staging)
+    staging.mkdir()
     with tarfile.open(archive) as tf:
-        tf.extractall(CACHE)
+        tf.extractall(staging)
+    (staging / "firefox").rename(install_dir)
+    shutil.rmtree(staging)
     archive.unlink()
 
     if not binary.exists():
-        sys.exit(f"expected {binary} after extracting Firefox Nightly")
+        sys.exit(f"expected {binary} after extracting Firefox build")
     return binary
 
 
@@ -320,18 +348,36 @@ def collect_proxy_info(driver: webdriver.Firefox) -> dict | None:
             if (!info) { done(null); return; }
             const dashboard = Cc['@mozilla.org/network/dashboard;1']
               .getService(Ci.nsIDashboard);
-            dashboard.requestHttpConnections(data => {
-              let httpVersion = null;
-              try {
-                for (const c of data.connections) {
+            // Two paths for the proxy hop's HTTP version:
+            // - MASQUE proxy: never gets a wildcard *:0 row (CreateWildCard
+            //   is HTTPS-only). Confirm via an active UDP socket on the
+            //   proxy port and label as HTTP/3 — MASQUE is h3 by spec.
+            // - HTTPS CONNECT proxy: the connection manager creates a
+            //   wildcard `*:0` row for h2 coalescing; its httpVersion field
+            //   is the ALPN negotiated with the proxy (HTTP/2 or HTTP <= 1.1).
+            if (info.type === 'masque') {
+              dashboard.requestSockets(sockData => {
+                let httpVersion = null;
+                for (const s of (sockData.sockets || [])) {
+                  if (s.port === info.port && s.active && s.type === 'UDP') {
+                    httpVersion = 'HTTP/3';
+                    break;
+                  }
+                }
+                done({ ...info, httpVersion });
+              });
+            } else {
+              dashboard.requestHttpConnections(httpData => {
+                let httpVersion = null;
+                for (const c of httpData.connections) {
                   if (c.host === '*' && c.port === 0) {
                     httpVersion = c.httpVersion;
                     break;
                   }
                 }
-              } catch (e) {}
-              done({ ...info, httpVersion });
-            });
+                done({ ...info, httpVersion });
+              });
+            }
         """)
 
 
@@ -365,6 +411,11 @@ def main() -> None:
         help="run a minimal speed test (1 of each measurement) to make "
              "end-to-end iteration fast; numbers are not meaningful",
     )
+    parser.add_argument(
+        "--custom-firefox", action="store_true",
+        help="use the hardcoded custom build (see FIREFOX_CUSTOM_URL) "
+             "instead of the latest Nightly",
+    )
     args = parser.parse_args()
 
     require_linux_x86_64()
@@ -372,7 +423,7 @@ def main() -> None:
     RESULTS.mkdir(exist_ok=True)
     PROFILE.mkdir(exist_ok=True)
 
-    firefox = ensure_firefox()
+    firefox = ensure_firefox(FIREFOX_CUSTOM_URL if args.custom_firefox else FIREFOX_NIGHTLY_URL)
     geckodriver = ensure_geckodriver()
     print(f"Using {firefox_version(firefox)}")
 
@@ -402,6 +453,8 @@ def main() -> None:
     parts = []
     if args.debug:
         parts.append("debug")
+    if args.custom_firefox:
+        parts.append("custom")
     if args.vpn:
         parts.append("vpn")
     if args.h3:
