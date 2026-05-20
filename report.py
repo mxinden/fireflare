@@ -41,10 +41,18 @@ def fmt_bytes(n: float) -> str:
 def summary_table(runs: list[dict]) -> str:
     def trace(r: dict, key: str) -> str:
         return (r.get("trace") or {}).get(key, "—")
+    def proxy(r: dict) -> str:
+        p = r.get("proxy")
+        if not p:
+            return "—"
+        version = p.get("httpVersion") or "?"
+        return f"{version} → {p['host']}:{p['port']}"
     cols = [
         ("run", lambda r: r["label"]),
         ("colo",          lambda r: trace(r, "colo")),
         ("client ip",     lambda r: trace(r, "ip")),
+        ("http (origin)", lambda r: trace(r, "http")),
+        ("proxy",         proxy),
         ("download (Mbps)", lambda r: f"{r['summary']['download'] / 1e6:.1f}"),
         ("upload (Mbps)",   lambda r: f"{r['summary']['upload']   / 1e6:.1f}"),
         ("latency idle (ms)",     lambda r: f"{r['summary']['latency']:.1f}"),
@@ -107,8 +115,8 @@ def fig_latency_boxes(runs: list[dict]) -> go.Figure:
 
 
 STYLE = """
-body { font-family: system-ui, sans-serif; max-width: 1100px; margin: 2em auto; padding: 0 1em; }
-table { border-collapse: collapse; margin: 1em 0; }
+body { font-family: system-ui, sans-serif; max-width: 1400px; margin: 2em auto; padding: 0 1em; }
+table { border-collapse: collapse; margin: 1em auto; }
 th, td { border: 1px solid #ccc; padding: 0.4em 0.8em; text-align: right; }
 th:first-child, td:first-child { text-align: left; }
 th { background: #f4f4f4; }

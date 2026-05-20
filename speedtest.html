@@ -1,0 +1,88 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>fireflare</title></head>
+<body>
+<pre id="log">running @cloudflare/speedtest...</pre>
+<script type="module">
+import SpeedTest from 'https://esm.sh/@cloudflare/speedtest';
+const log = document.getElementById('log');
+// Based on @cloudflare/speedtest's defaultConfig. Packet-loss entry dropped
+// (needs a TURN server). Counts roughly doubled for a tighter distribution
+// per bucket — ~2× total runtime.
+// Source: cloudflare/speedtest src/config/defaultConfig.js
+const params = new URLSearchParams(location.search);
+const h3 = params.has('h3');
+const debugMode = params.has('debug');
+const apiBase = h3 ? 'https://bastion.h3.speed.cloudflare.com' : 'https://speed.cloudflare.com';
+const endpointOverrides = h3 ? {
+  downloadApiUrl: apiBase + '/__down',
+  uploadApiUrl:   apiBase + '/__up',
+} : {};
+
+async function fetchTrace() {
+  // cdn-cgi/trace returns plain text, one `key=value` per line. Gives us
+  // client IP (as seen by Cloudflare), colo (edge PoP), country, HTTP
+  // version, TLS version, SNI — context a MASQUE comparison needs.
+  try {
+    const r = await fetch(apiBase + '/cdn-cgi/trace');
+    const txt = await r.text();
+    return Object.fromEntries(
+      txt.trim().split('\n').filter(l => l.includes('=')).map(l => {
+        const i = l.indexOf('=');
+        return [l.slice(0, i), l.slice(i + 1)];
+      })
+    );
+  } catch (e) {
+    return { error: String((e && e.message) || e) };
+  }
+}
+// Debug mode runs a tiny subset so end-to-end iteration is fast (used to
+// validate plumbing changes — the numbers are not meaningful).
+const measurements = debugMode ? [
+  { type: 'latency', numPackets: 1 },
+  { type: 'download', bytes: 1e5, count: 1, bypassMinDuration: true },
+  { type: 'upload',   bytes: 1e5, count: 1, bypassMinDuration: true },
+] : [
+  { type: 'latency', numPackets: 1 },
+  { type: 'download', bytes: 1e5, count: 1, bypassMinDuration: true },
+  { type: 'latency', numPackets: 50 },
+  { type: 'download', bytes: 1e5, count: 15 },
+  { type: 'download', bytes: 1e6, count: 15 },
+  { type: 'upload', bytes: 1e5, count: 15 },
+  { type: 'upload', bytes: 1e6, count: 12 },
+  { type: 'download', bytes: 1e7, count: 12 },
+  { type: 'upload', bytes: 1e7, count: 8 },
+  { type: 'download', bytes: 2.5e7, count: 8 },
+  { type: 'upload', bytes: 2.5e7, count: 8 },
+  { type: 'download', bytes: 1e8, count: 6 },
+  { type: 'upload', bytes: 5e7, count: 6 },
+  { type: 'download', bytes: 2.5e8, count: 4 },
+];
+const st = new SpeedTest({
+  ...endpointOverrides,
+  loadedLatencyMaxPoints: 50,
+  measurements,
+});
+st.onFinish = async (results) => {
+  const trace = await fetchTrace();
+  const out = {
+    trace,
+    userAgent: navigator.userAgent,
+    h3Endpoint: h3,
+    summary: results.getSummary(),
+    downloadBandwidth: results.getDownloadBandwidth(),
+    uploadBandwidth: results.getUploadBandwidth(),
+    downloadBandwidthPoints: results.getDownloadBandwidthPoints(),
+    uploadBandwidthPoints: results.getUploadBandwidthPoints(),
+    unloadedLatencyPoints: results.getUnloadedLatencyPoints(),
+    downLoadedLatencyPoints: results.getDownLoadedLatencyPoints(),
+    upLoadedLatencyPoints: results.getUpLoadedLatencyPoints(),
+  };
+  window.__fireflare_result = out;
+  log.textContent = JSON.stringify(out, null, 2);
+};
+st.onError = (err) => {
+  window.__fireflare_error = String((err && err.message) || err);
+  log.textContent = 'error: ' + window.__fireflare_error;
+};
+</script>
+</body></html>

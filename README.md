@@ -6,7 +6,7 @@ Drives Firefox Nightly to run the [`@cloudflare/speedtest`](https://github.com/c
 
 - **Direct baseline** — works (`uv run main.py`).
 - **HTTP/3 variant** — works (`uv run main.py --h3`, points the library at `bastion.h3.speed.cloudflare.com`).
-- **In-browser VPN (IP protection)** — works (`uv run main.py --vpn`), routes speedtest traffic through Firefox's IP protection / Fastly proxy. Today it's HTTP CONNECT over TCP, so `--vpn --h3` silently downgrades to HTTP/2 over the tunnel; actual MASQUE connect-udp support will come later.
+- **In-browser VPN (IP protection)** — works (`uv run main.py --vpn`), routes speedtest traffic through Firefox's IP protection / Fastly proxy. Today the proxy hop is HTTP/2 CONNECT-over-TLS (read out of Firefox's connection table at the end of the run and surfaced in the report); MASQUE / connect-udp support will come later.
 
 ## Requirements
 
@@ -38,6 +38,7 @@ uv run main.py                # direct baseline
 uv run main.py --h3           # force h3.speed.cloudflare.com endpoint
 uv run main.py --vpn          # route through IP protection
 uv run main.py --vpn --h3     # (currently downgrades to h2 over tunnel)
+uv run main.py --debug        # tiny measurement set; for plumbing changes
 ```
 
 Output JSON files land in `results/`, named `<tag>-<utc-timestamp>.json` where `<tag>` composes `direct`, optionally `vpn`, and optionally `h3`.
@@ -48,7 +49,7 @@ Output JSON files land in `results/`, named `<tag>-<utc-timestamp>.json` where `
 uv run report.py
 ```
 
-Writes `results/report.html` (self-contained, Plotly JS inlined). Summary table shows colo, client IP, throughput, latency, jitter per run; boxplots show per-request bandwidth by transfer size and latency distributions.
+Writes `results/report.html` (self-contained, Plotly JS inlined). Summary table shows colo, client IP, origin HTTP version, proxy hop (for `--vpn` runs), throughput, latency, and jitter per run; boxplots show per-request bandwidth by transfer size and latency distributions.
 
 ## License
 

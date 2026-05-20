@@ -38,87 +38,7 @@ GECKODRIVER_LATEST_API = (
     "https://api.github.com/repos/mozilla/geckodriver/releases/latest"
 )
 
-SPEEDTEST_HTML = """\
-<!doctype html>
-<html><head><meta charset="utf-8"><title>fireflare</title></head>
-<body>
-<pre id="log">running @cloudflare/speedtest...</pre>
-<script type="module">
-import SpeedTest from 'https://esm.sh/@cloudflare/speedtest';
-const log = document.getElementById('log');
-// Based on @cloudflare/speedtest's defaultConfig. Packet-loss entry dropped
-// (needs a TURN server). Counts roughly doubled for a tighter distribution
-// per bucket — ~2× total runtime.
-// Source: cloudflare/speedtest src/config/defaultConfig.js
-const h3 = new URLSearchParams(location.search).has('h3');
-const apiBase = h3 ? 'https://bastion.h3.speed.cloudflare.com' : 'https://speed.cloudflare.com';
-const endpointOverrides = h3 ? {
-  downloadApiUrl: apiBase + '/__down',
-  uploadApiUrl:   apiBase + '/__up',
-} : {};
-
-async function fetchTrace() {
-  // cdn-cgi/trace returns plain text, one `key=value` per line. Gives us
-  // client IP (as seen by Cloudflare), colo (edge PoP), country, HTTP
-  // version, TLS version, SNI — context a MASQUE comparison needs.
-  try {
-    const r = await fetch(apiBase + '/cdn-cgi/trace');
-    const txt = await r.text();
-    return Object.fromEntries(
-      txt.trim().split('\\n').filter(l => l.includes('=')).map(l => {
-        const i = l.indexOf('=');
-        return [l.slice(0, i), l.slice(i + 1)];
-      })
-    );
-  } catch (e) {
-    return { error: String((e && e.message) || e) };
-  }
-}
-const st = new SpeedTest({
-  ...endpointOverrides,
-  loadedLatencyMaxPoints: 50,
-  measurements: [
-    { type: 'latency', numPackets: 1 },
-    { type: 'download', bytes: 1e5, count: 1, bypassMinDuration: true },
-    { type: 'latency', numPackets: 50 },
-    { type: 'download', bytes: 1e5, count: 15 },
-    { type: 'download', bytes: 1e6, count: 15 },
-    { type: 'upload', bytes: 1e5, count: 15 },
-    { type: 'upload', bytes: 1e6, count: 12 },
-    { type: 'download', bytes: 1e7, count: 12 },
-    { type: 'upload', bytes: 1e7, count: 8 },
-    { type: 'download', bytes: 2.5e7, count: 8 },
-    { type: 'upload', bytes: 2.5e7, count: 8 },
-    { type: 'download', bytes: 1e8, count: 6 },
-    { type: 'upload', bytes: 5e7, count: 6 },
-    { type: 'download', bytes: 2.5e8, count: 4 },
-  ],
-});
-st.onFinish = async (results) => {
-  const trace = await fetchTrace();
-  const out = {
-    trace,
-    userAgent: navigator.userAgent,
-    h3Endpoint: h3,
-    summary: results.getSummary(),
-    downloadBandwidth: results.getDownloadBandwidth(),
-    uploadBandwidth: results.getUploadBandwidth(),
-    downloadBandwidthPoints: results.getDownloadBandwidthPoints(),
-    uploadBandwidthPoints: results.getUploadBandwidthPoints(),
-    unloadedLatencyPoints: results.getUnloadedLatencyPoints(),
-    downLoadedLatencyPoints: results.getDownLoadedLatencyPoints(),
-    upLoadedLatencyPoints: results.getUpLoadedLatencyPoints(),
-  };
-  window.__fireflare_result = out;
-  log.textContent = JSON.stringify(out, null, 2);
-};
-st.onError = (err) => {
-  window.__fireflare_error = String((err && err.message) || err);
-  log.textContent = 'error: ' + window.__fireflare_error;
-};
-</script>
-</body></html>
-"""
+SPEEDTEST_HTML = (ROOT / "speedtest.html").read_bytes()
 
 
 def require_linux_x86_64() -> None:
@@ -262,7 +182,7 @@ class _PageHandler(BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_header("Content-Type", "text/html; charset=utf-8")
         self.end_headers()
-        self.wfile.write(SPEEDTEST_HTML.encode("utf-8"))
+        self.wfile.write(SPEEDTEST_HTML)
 
     def log_message(self, *_args):
         pass
@@ -311,6 +231,28 @@ def set_ip_protection(driver: webdriver.Firefox, enabled: bool) -> None:
                 IPPProxyManager.start(true, false).then(
                   r => {
                     Services.obs.removeObserver(observer, 'http-on-stop-request');
+                    // Record proxyInfo from the first proxied channel during
+                    // the test so collect_proxy_info() knows which host/port
+                    // to look up in the HTTP connection table. Stashed on the
+                    // IPPProxyManager singleton because Marionette's chrome
+                    // sandbox does not share globalThis across execute_script
+                    // calls, but this singleton is shared.
+                    IPPProxyManager.__fireflare_proxy = null;
+                    const proxyObs = {
+                      observe(subject) {
+                        if (IPPProxyManager.__fireflare_proxy) return;
+                        try {
+                          const ch = subject.QueryInterface(Ci.nsIHttpChannel);
+                          const pi = ch.QueryInterface(Ci.nsIProxiedChannel).proxyInfo;
+                          if (!pi || pi.type === 'direct') return;
+                          IPPProxyManager.__fireflare_proxy = {
+                            type: pi.type, host: pi.host, port: pi.port,
+                          };
+                        } catch (e) {}
+                      },
+                    };
+                    Services.obs.addObserver(proxyObs, 'http-on-stop-request');
+                    IPPProxyManager.__fireflare_obs = proxyObs;
                     done({
                       result: r || {},
                       failed,
@@ -351,6 +293,48 @@ def set_ip_protection(driver: webdriver.Firefox, enabled: bool) -> None:
             """)
 
 
+def collect_proxy_info(driver: webdriver.Firefox) -> dict | None:
+    """Return the proxyInfo from the first proxied channel plus the actual
+    HTTP version negotiated on the connection to the proxy. None if no
+    proxied channel was seen (e.g. VPN disabled).
+
+    Firefox creates a wildcard `*:0` entry in its HTTP connection table for
+    HTTPS-proxy h2 coalescing (see nsHttpConnectionInfo::CreateWildCard);
+    that row's `httpVersion` is the ALPN-negotiated protocol on the
+    browser↔proxy connection (HTTP/2 or `HTTP <= 1.1`).
+    """
+    driver.set_script_timeout(10)
+    with driver.context(driver.CONTEXT_CHROME):
+        return driver.execute_async_script("""
+            const done = arguments[arguments.length - 1];
+            const { IPPProxyManager } = ChromeUtils.importESModule(
+              'moz-src:///toolkit/components/ipprotection/IPPProxyManager.sys.mjs'
+            );
+            const info = IPPProxyManager.__fireflare_proxy || null;
+            const obs = IPPProxyManager.__fireflare_obs;
+            if (obs) {
+              try { Services.obs.removeObserver(obs, 'http-on-stop-request'); } catch (e) {}
+              IPPProxyManager.__fireflare_obs = null;
+            }
+            IPPProxyManager.__fireflare_proxy = null;
+            if (!info) { done(null); return; }
+            const dashboard = Cc['@mozilla.org/network/dashboard;1']
+              .getService(Ci.nsIDashboard);
+            dashboard.requestHttpConnections(data => {
+              let httpVersion = null;
+              try {
+                for (const c of data.connections) {
+                  if (c.host === '*' && c.port === 0) {
+                    httpVersion = c.httpVersion;
+                    break;
+                  }
+                }
+              } catch (e) {}
+              done({ ...info, httpVersion });
+            });
+        """)
+
+
 def collect_results(driver: webdriver.Firefox, url: str, timeout_s: int = 300) -> dict:
     driver.get(url)
     deadline = time.monotonic() + timeout_s
@@ -376,6 +360,11 @@ def main() -> None:
         help="enable Firefox's IP protection (MASQUE proxy) before measuring "
              "(requires the profile to already be signed in)",
     )
+    parser.add_argument(
+        "--debug", action="store_true",
+        help="run a minimal speed test (1 of each measurement) to make "
+             "end-to-end iteration fast; numbers are not meaningful",
+    )
     args = parser.parse_args()
 
     require_linux_x86_64()
@@ -388,7 +377,12 @@ def main() -> None:
     print(f"Using {firefox_version(firefox)}")
 
     server, base_url = serve_page()
-    url = base_url + ("?h3=1" if args.h3 else "")
+    qs = []
+    if args.h3:
+        qs.append("h3=1")
+    if args.debug:
+        qs.append("debug=1")
+    url = base_url + (f"?{'&'.join(qs)}" if qs else "")
     scrub_profile_test_stubs()
     driver = build_driver(firefox, geckodriver)
     try:
@@ -398,12 +392,16 @@ def main() -> None:
         set_ip_protection(driver, args.vpn)
         print("Running speed test...")
         result = collect_results(driver, url)
+        if args.vpn:
+            result["proxy"] = collect_proxy_info(driver)
     finally:
         driver.quit()
         server.shutdown()
 
     ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     parts = []
+    if args.debug:
+        parts.append("debug")
     if args.vpn:
         parts.append("vpn")
     if args.h3:
