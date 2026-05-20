@@ -50,6 +50,21 @@ GECKODRIVER_LATEST_API = (
 SPEEDTEST_HTML = (ROOT / "speedtest.html").read_bytes()
 
 
+def http_version_short(v: str | None) -> str:
+    """Map a verbose HTTP version label ('HTTP/3', 'http/1.1', 'HTTP <= 1.1',
+    …) to the compact tag form used in result filenames ('h3', 'h2', 'h1').
+    Returns '?' for unknown / missing values."""
+    if not v:
+        return "?"
+    if "3" in v:
+        return "h3"
+    if "2" in v:
+        return "h2"
+    if "1" in v:
+        return "h1"
+    return "?"
+
+
 def require_linux_x86_64() -> None:
     if platform.system() != "Linux" or platform.machine() != "x86_64":
         sys.exit(f"fireflare currently only supports Linux x86_64 "
@@ -453,12 +468,10 @@ def main() -> None:
     parts = []
     if args.debug:
         parts.append("debug")
-    if args.custom_firefox:
-        parts.append("custom")
-    if args.vpn:
-        parts.append("vpn")
-    if args.h3:
-        parts.append("h3")
+    proxy = result.get("proxy")
+    if proxy:
+        parts.append(f"proxy-{http_version_short(proxy.get('httpVersion'))}")
+    parts.append(f"origin-{http_version_short((result.get('trace') or {}).get('http'))}")
     parts.append(ts)
     out_path = RESULTS / ("-".join(parts) + ".json")
     out_path.write_text(json.dumps(result, indent=2))
