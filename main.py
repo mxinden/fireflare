@@ -37,11 +37,11 @@ FIREFOX_NIGHTLY_URL = (
 )
 # Linux64 opt build of the try push that adds HTTP/3 / MASQUE outer-connection
 # support for the IP-protection proxy. Used by `--custom-firefox`.
-# Try rev: 36ec3f22bab69b8ca3cb77744dd4aea1a8e386d2 — "Use http/3 for the
-# outer connection to the VPN server".
+# Try rev: 18e50b94753b — "Use MASQUE (connect-udp) for the outer connection
+# to the VPN server" (connect-udp well-known template, not plain CONNECT).
 FIREFOX_CUSTOM_URL = (
     "https://firefox-ci-tc.services.mozilla.com/api/queue/v1/task/"
-    "IXM7-6-GTRS0J7_iPeHfqw/runs/0/artifacts/public/build/target.tar.xz"
+    "Hnh7T49BTg6nSmeEy7medg/runs/0/artifacts/public/build/target.tar.xz"
 )
 GECKODRIVER_LATEST_API = (
     "https://api.github.com/repos/mozilla/geckodriver/releases/latest"
