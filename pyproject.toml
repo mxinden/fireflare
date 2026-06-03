@@ -8,5 +8,6 @@ license-files = ["LICENSE-MIT", "LICENSE-APACHE"]
 requires-python = ">=3.11"
 dependencies = [
     "plotly>=6.7.0",
+    "pyfxa>=0.8.2",
     "selenium>=4.43.0",
 ]

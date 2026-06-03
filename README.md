@@ -6,7 +6,7 @@ Drives Firefox Nightly to run the [`@cloudflare/speedtest`](https://github.com/c
 
 - **Direct baseline** — works (`uv run main.py`).
 - **HTTP/3 variant** — works (`uv run main.py --h3`, points the library at `bastion.h3.speed.cloudflare.com`).
-- **In-browser VPN (IP protection)** — works (`uv run main.py --vpn`), routes speedtest traffic through Firefox's IP protection / Fastly proxy. Today the proxy hop is HTTP/2 CONNECT-over-TLS (read out of Firefox's connection table at the end of the run and surfaced in the report); MASQUE / connect-udp support will come later.
+- **In-browser VPN (IP protection)** — works (`uv run main.py --vpn`), routes speedtest traffic through Firefox's IP protection / Fastly proxy. Two independent layers matter and the report surfaces both. (1) **Transport to the proxy** (Firefox to the Fastly server): HTTP/2 on Nightly, HTTP/3 with connect-udp negotiated under `--custom-firefox` (a try build). (2) **Destination tunnel method** (how the origin is reached through the proxy): classic CONNECT in both cases, so the origin negotiates h2. An h3 transport to the proxy does not imply MASQUE to the origin. End-to-end MASQUE (connect-udp to the origin, which would let the origin be h3) does not yet establish: Firefox attempts it but falls back to CONNECT.
 
 ## Requirements
 
@@ -36,12 +36,13 @@ The persistent profile lives at `./profile/` (gitignored) and is reused across r
 ```
 uv run main.py                # direct baseline
 uv run main.py --h3           # force h3.speed.cloudflare.com endpoint
-uv run main.py --vpn          # route through IP protection
-uv run main.py --vpn --h3     # (currently downgrades to h2 over tunnel)
+uv run main.py --vpn          # route through IP protection (h2 CONNECT proxy hop)
+uv run main.py --vpn --h3     # IP protection + h3 origin endpoint
+uv run main.py --vpn --h3 --custom-firefox   # h3 transport to proxy, origin still CONNECT/h2 (try build)
 uv run main.py --debug        # tiny measurement set; for plumbing changes
 ```
 
-Output JSON files land in `results/`, named `<tag>-<utc-timestamp>.json` where `<tag>` composes `direct`, optionally `vpn`, and optionally `h3`.
+Output JSON files land in `results/`, named `<tag>-<utc-timestamp>.json`. The tag records, in order: `debug` (only with `--debug`); on `--vpn` runs `proxy-<v>` for the transport to the proxy (`h3` = QUIC with connect-udp negotiated to the proxy, `h2` = TCP CONNECT); and `origin-<v>` for the HTTP version negotiated with the origin, which reflects the destination tunnel method (`h2` = CONNECT, `h3` = connect-udp end to end).
 
 ## Report
 

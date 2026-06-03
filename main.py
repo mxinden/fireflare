@@ -363,13 +363,18 @@ def collect_proxy_info(driver: webdriver.Firefox) -> dict | None:
             if (!info) { done(null); return; }
             const dashboard = Cc['@mozilla.org/network/dashboard;1']
               .getService(Ci.nsIDashboard);
-            // Two paths for the proxy hop's HTTP version:
-            // - MASQUE proxy: never gets a wildcard *:0 row (CreateWildCard
-            //   is HTTPS-only). Confirm via an active UDP socket on the
-            //   proxy port and label as HTTP/3 — MASQUE is h3 by spec.
-            // - HTTPS CONNECT proxy: the connection manager creates a
-            //   wildcard `*:0` row for h2 coalescing; its httpVersion field
-            //   is the ALPN negotiated with the proxy (HTTP/2 or HTTP <= 1.1).
+            // This reports only the TRANSPORT to the proxy (Firefox to the
+            // Fastly server), NOT how the proxy reaches the origin. An h3
+            // transport does not imply connect-udp to the origin: Firefox can
+            // (and currently does) tunnel the origin via classic CONNECT over
+            // an h3 proxy connection, leaving the origin on h2. The origin's
+            // own HTTP version (result.trace.http) is the signal for that.
+            // - h3 transport: the QUIC connection to the proxy never gets a
+            //   wildcard *:0 row (CreateWildCard is HTTPS/h2 only). Detect it
+            //   via an active UDP socket on the proxy port; QUIC implies h3.
+            // - h2 / h1 transport: the connection manager creates a wildcard
+            //   `*:0` row for h2 coalescing; its httpVersion is the ALPN
+            //   negotiated with the proxy (HTTP/2 or HTTP <= 1.1).
             if (info.type === 'masque') {
               dashboard.requestSockets(sockData => {
                 let httpVersion = null;
