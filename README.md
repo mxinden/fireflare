@@ -4,9 +4,9 @@ Drives Firefox Nightly to run the [`@cloudflare/speedtest`](https://github.com/c
 
 ## Status
 
-- **Direct baseline** — works (`uv run main.py`).
-- **HTTP/3 variant** — works (`uv run main.py --h3`, points the library at `bastion.h3.speed.cloudflare.com`).
-- **In-browser VPN (IP protection)** — works (`uv run main.py --vpn`), routes speedtest traffic through Firefox's IP protection / Fastly proxy. Two independent layers matter and the report surfaces both. (1) **Transport to the proxy** (Firefox to the Fastly server): HTTP/2 on Nightly, HTTP/3 with connect-udp negotiated under `--custom-firefox` (a try build). (2) **Destination tunnel method** (how the origin is reached through the proxy): classic CONNECT in both cases, so the origin negotiates h2. An h3 transport to the proxy does not imply MASQUE to the origin. End-to-end MASQUE (connect-udp to the origin, which would let the origin be h3) does not yet establish: Firefox attempts it but falls back to CONNECT.
+- **Direct baseline** works (`uv run main.py`).
+- **HTTP/3 variant** works (`uv run main.py --h3`, points the library at `bastion.h3.speed.cloudflare.com`).
+- **In-browser VPN (IP protection)** works (`uv run main.py --vpn`), routes speedtest traffic through Firefox's IP protection / Fastly proxy. Two independent layers matter and the report surfaces both. (1) **Transport to the proxy** (Firefox to the Fastly server): HTTP/2 on Nightly, HTTP/3 with connect-udp negotiated under `--custom-firefox` (a try build). (2) **Destination tunnel method** (how the origin is reached through the proxy): classic CONNECT in both cases, so the origin negotiates h2. An h3 transport to the proxy does not imply MASQUE to the origin. End-to-end MASQUE (connect-udp to the origin, which would let the origin be h3) does not yet establish: Firefox attempts it but falls back to CONNECT.
 
 ## Requirements
 

@@ -37,7 +37,7 @@ FIREFOX_NIGHTLY_URL = (
 )
 # Build of the try push that lets the IP-protection proxy carry HTTP/3 to the
 # origin (connect-udp inner), not just to the proxy. Used by `--custom-firefox`.
-# Try rev: bc9bc791bad0 — "Skip Alt-Svc validation to allow h3 outer VPN
+# Try rev: bc9bc791bad0, "Skip Alt-Svc validation to allow h3 outer VPN
 # connection" (Bug 2005211): marks Alt-Svc h3 mappings validated immediately,
 # since the speculative validation can't traverse the proxy CONNECT tunnel.
 FIREFOX_CUSTOM_URL = (
@@ -166,7 +166,7 @@ def scrub_profile_test_stubs() -> None:
 
     Past sessions can leave `{server}` / `%(server)s` placeholders in
     prefs.js (FxA auth.uri, telemetry, addons blocklist, …). Firefox caches
-    these at startup, so clearing at runtime is too late — FxA keeps
+    these at startup, so clearing at runtime is too late, FxA keeps
     POSTing to `https://{server}/dummy/fxa/oauth/token`. We rewrite
     prefs.js up front so the cached values are sane from the start.
     """
@@ -192,17 +192,17 @@ def build_driver(firefox: Path, geckodriver: Path) -> webdriver.Firefox:
     # default throwaway profile.
     options.add_argument("-profile")
     options.add_argument(str(PROFILE))
-    # Allow Marionette's chrome-context switch — needed to flip privileged
+    # Allow Marionette's chrome-context switch, needed to flip privileged
     # prefs at runtime (e.g. browser.ipProtection.userEnabled).
     options.add_argument("-remote-allow-system-access")
     # Disable Firefox's runtime-applied "recommended" WebDriver preferences.
     # Those stub real endpoints (e.g. identity.fxaccounts.auth.uri →
     # https://{server}/dummy/fxa) to isolate tests, which breaks anything
-    # that actually needs to talk to Mozilla services — including IP
+    # that actually needs to talk to Mozilla services, including IP
     # protection. See remote/shared/RecommendedPreferences.sys.mjs.
     options.set_preference("remote.prefs.recommended", False)
     # IP protection's channel filter excludes any request triggered from a
-    # loopback origin — which is exactly what our local test page is. Add
+    # loopback origin, which is exactly what our local test page is. Add
     # an inclusion list so the Cloudflare speedtest endpoints are proxied
     # anyway.
     options.set_preference(
@@ -245,7 +245,7 @@ def set_ip_protection(driver: webdriver.Firefox, enabled: bool) -> None:
     """Turn the Firefox IP-protection (MASQUE VPN) proxy on or off at runtime.
 
     Flipping `browser.ipProtection.userEnabled` alone only changes the
-    persisted UI toggle — the proxy doesn't actually start. We also call
+    persisted UI toggle, the proxy doesn't actually start. We also call
     IPPProxyManager.start()/stop() the same way the panel UI does.
     Requires: profile already signed in + `browser.ipProtection.enabled=true`.
     """
@@ -499,7 +499,7 @@ def run_once(firefox: Path, geckodriver: Path, base_url: str, *, vpn: bool,
     driver = build_driver(firefox, geckodriver)
     try:
         print(f"Serving {url}")
-        # Always flip the VPN toggle to the requested state — the persisted
+        # Always flip the VPN toggle to the requested state, the persisted
         # profile may have left it on from a previous run.
         set_ip_protection(driver, vpn)
         if vpn:
@@ -523,7 +523,7 @@ def run_once(firefox: Path, geckodriver: Path, base_url: str, *, vpn: bool,
 
 
 # The comparison matrix. All configs run on the custom build (FIREFOX_CUSTOM_URL):
-# the proxy transport follows the inner automatically — a TCP inner (normal
+# the proxy transport follows the inner automatically, a TCP inner (normal
 # endpoint) tunnels via h3 CONNECT, a QUIC inner (h3 endpoint, primed) via h3
 # connect-udp/MASQUE. Protocols are confirmed from each result at runtime.
 MATRIX = [

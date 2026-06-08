@@ -7,7 +7,7 @@ import SpeedTest from 'https://esm.sh/@cloudflare/speedtest';
 const log = document.getElementById('log');
 // Based on @cloudflare/speedtest's defaultConfig. Packet-loss entry dropped
 // (needs a TURN server). Counts roughly doubled for a tighter distribution
-// per bucket — ~2× total runtime.
+// per bucket, ~2× total runtime.
 // Source: cloudflare/speedtest src/config/defaultConfig.js
 const params = new URLSearchParams(location.search);
 const h3 = params.has('h3');
@@ -21,7 +21,7 @@ const endpointOverrides = h3 ? {
 async function fetchTrace() {
   // cdn-cgi/trace returns plain text, one `key=value` per line. Gives us
   // client IP (as seen by Cloudflare), colo (edge PoP), country, HTTP
-  // version, TLS version, SNI — context a MASQUE comparison needs.
+  // version, TLS version, SNI, context a MASQUE comparison needs.
   try {
     const r = await fetch(apiBase + '/cdn-cgi/trace');
     const txt = await r.text();
@@ -36,7 +36,7 @@ async function fetchTrace() {
   }
 }
 // Debug mode runs a tiny subset so end-to-end iteration is fast (used to
-// validate plumbing changes — the numbers are not meaningful).
+// validate plumbing changes, the numbers are not meaningful).
 const measurements = debugMode ? [
   { type: 'latency', numPackets: 1 },
   { type: 'download', bytes: 1e5, count: 1, bypassMinDuration: true },

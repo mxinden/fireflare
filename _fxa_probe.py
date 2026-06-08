@@ -34,7 +34,7 @@ else:
 session.fetch_keys(password)
 print("session.fetch_keys ok")
 
-print("\nDONE — credentials:")
+print("\nDONE, credentials:")
 print(f"  email:    {acct.email}")
 print(f"  password: {password}")
 print(f"  uid:      {session.uid}")
