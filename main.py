@@ -35,14 +35,17 @@ FIREFOX_NIGHTLY_URL = (
     "https://download.mozilla.org/?product=firefox-nightly-latest-ssl"
     "&os=linux64&lang=en-US"
 )
-# Linux64 opt build of the try push that adds HTTP/3 / MASQUE outer-connection
-# support for the IP-protection proxy. Used by `--custom-firefox`.
-# Try rev: 18e50b94753b — "Use MASQUE (connect-udp) for the outer connection
-# to the VPN server" (connect-udp well-known template, not plain CONNECT).
+# Build of the try push that lets the IP-protection proxy carry HTTP/3 to the
+# origin (connect-udp inner), not just to the proxy. Used by `--custom-firefox`.
+# Try rev: bc9bc791bad0 — "Skip Alt-Svc validation to allow h3 outer VPN
+# connection" (Bug 2005211): marks Alt-Svc h3 mappings validated immediately,
+# since the speculative validation can't traverse the proxy CONNECT tunnel.
 FIREFOX_CUSTOM_URL = (
     "https://firefox-ci-tc.services.mozilla.com/api/queue/v1/task/"
-    "Hnh7T49BTg6nSmeEy7medg/runs/0/artifacts/public/build/target.tar.xz"
+    "Y_qQJGw4S4Sda1ML9OIr7A/runs/0/artifacts/public/build/target.tar.xz"
 )
+# Origin whose h3 Alt-Svc we prime before a --vpn --h3 run (see prime_h3_altsvc).
+H3_PRIME_URL = "https://bastion.h3.speed.cloudflare.com/cdn-cgi/trace"
 GECKODRIVER_LATEST_API = (
     "https://api.github.com/repos/mozilla/geckodriver/releases/latest"
 )
@@ -401,6 +404,41 @@ def collect_proxy_info(driver: webdriver.Firefox) -> dict | None:
         """)
 
 
+def disable_http_cache(driver: webdriver.Firefox) -> None:
+    """Disable the disk+memory HTTP cache so every request is a live network
+    response. Without this the persistent profile serves/revalidates responses
+    from cache, which skips the live Alt-Svc processing path and pins requests
+    to the cached (h2) connection, masking the h3 (connect-udp) inner route.
+    """
+    with driver.context(driver.CONTEXT_CHROME):
+        driver.execute_script("""
+            Services.prefs.setBoolPref('browser.cache.disk.enable', false);
+            Services.prefs.setBoolPref('browser.cache.memory.enable', false);
+        """)
+
+
+def prime_h3_altsvc(driver: webdriver.Firefox) -> None:
+    """Make the speedtest run over h3 to the origin through the MASQUE proxy.
+
+    There is no HTTPS RR (DNS is resolved through the proxy), so the only h3
+    signal is Alt-Svc on a reconnect. A single page load would open one h2
+    CONNECT tunnel, learn Alt-Svc, then reuse that h2 connection for the whole
+    test. So we first prime: fetch the origin once (h2) to store its h3 Alt-Svc
+    mapping, then drop all connections and clear the h3-excluded list so the
+    speedtest's own requests open fresh connections that take the h3
+    (connect-udp) route from the now-stored mapping.
+    """
+    print("Priming h3 Alt-Svc for the origin...")
+    driver.get(H3_PRIME_URL)
+    time.sleep(2)
+    with driver.context(driver.CONTEXT_CHROME):
+        driver.execute_script("""
+            Services.obs.notifyObservers(null, 'net:cancel-all-connections');
+            Services.obs.notifyObservers(null, 'network:reset-http3-excluded-list');
+        """)
+    time.sleep(2)
+
+
 def collect_results(driver: webdriver.Firefox, url: str, timeout_s: int = 300) -> dict:
     driver.get(url)
     deadline = time.monotonic() + timeout_s
@@ -413,6 +451,131 @@ def collect_results(driver: webdriver.Firefox, url: str, timeout_s: int = 300) -
             return result
         time.sleep(1)
     sys.exit(f"speed test did not complete within {timeout_s}s")
+
+
+def set_http3_enabled(driver: webdriver.Firefox, enabled: bool) -> None:
+    """Toggle HTTP/3 globally. NOTE: *disabling* is only honored by Happy
+    Eyeballs v3 once Bug 2043768 (phab D304159, "Honor http2/http3 prefs in
+    HEv3") lands; until then h3 is still attempted despite this pref, which is
+    why the matrix's h2-CONNECT config is skipped."""
+    with driver.context(driver.CONTEXT_CHROME):
+        driver.execute_script(
+            "Services.prefs.setBoolPref('network.http.http3.enable', arguments[0]);",
+            enabled,
+        )
+
+
+def save_result(result: dict, *, debug: bool, label: str | None = None) -> Path:
+    ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    parts = []
+    if label:
+        parts.append(label)
+    if debug:
+        parts.append("debug")
+    proxy = result.get("proxy")
+    if proxy:
+        parts.append(f"proxy-{http_version_short(proxy.get('httpVersion'))}")
+    parts.append(f"origin-{http_version_short((result.get('trace') or {}).get('http'))}")
+    parts.append(ts)
+    out_path = RESULTS / ("-".join(parts) + ".json")
+    out_path.write_text(json.dumps(result, indent=2))
+    print(f"Saved {out_path.relative_to(ROOT)}")
+    return out_path
+
+
+def run_once(firefox: Path, geckodriver: Path, base_url: str, *, vpn: bool,
+             h3: bool, debug: bool, disable_h3: bool = False,
+             label: str | None = None) -> dict:
+    """Run a single speed test in its own Firefox session and save the result.
+    Returns the result dict (with the negotiated proxy hop + origin protocol,
+    so callers can confirm what actually happened at runtime)."""
+    qs = []
+    if h3:
+        qs.append("h3=1")
+    if debug:
+        qs.append("debug=1")
+    url = base_url + (f"?{'&'.join(qs)}" if qs else "")
+    scrub_profile_test_stubs()
+    driver = build_driver(firefox, geckodriver)
+    try:
+        print(f"Serving {url}")
+        # Always flip the VPN toggle to the requested state — the persisted
+        # profile may have left it on from a previous run.
+        set_ip_protection(driver, vpn)
+        if vpn:
+            disable_http_cache(driver)
+        if disable_h3:
+            set_http3_enabled(driver, False)
+        # For h3 over the VPN we must prime the origin's Alt-Svc and force fresh
+        # connections, otherwise the speedtest reuses the initial h2 tunnel.
+        if vpn and h3:
+            prime_h3_altsvc(driver)
+        print("Running speed test...")
+        result = collect_results(driver, url)
+        if vpn:
+            result["proxy"] = collect_proxy_info(driver)
+    finally:
+        driver.quit()
+    if label:
+        result["config"] = label
+    save_result(result, debug=debug, label=label)
+    return result
+
+
+# The comparison matrix. All configs run on the custom build (FIREFOX_CUSTOM_URL):
+# the proxy transport follows the inner automatically — a TCP inner (normal
+# endpoint) tunnels via h3 CONNECT, a QUIC inner (h3 endpoint, primed) via h3
+# connect-udp/MASQUE. Protocols are confirmed from each result at runtime.
+MATRIX = [
+    # label, run_once kwargs, skip_reason
+    ("1-direct-h1h2",    dict(vpn=False, h3=False), None),
+    ("2-direct-h3",      dict(vpn=False, h3=True),  None),
+    ("3-proxy-h2connect", dict(vpn=True, h3=False, disable_h3=True),
+     "needs Bug 2043768 / D304159 (honor http3.enable in HEv3) to land before "
+     "h3 can be disabled to force an h2 CONNECT proxy hop"),
+    ("4-proxy-h3connect", dict(vpn=True, h3=False), None),
+    ("5-proxy-h3masque",  dict(vpn=True, h3=True),  None),
+]
+
+
+def run_matrix(firefox: Path, geckodriver: Path, *, debug: bool) -> None:
+    server, base_url = serve_page()
+    summary = []
+    try:
+        for label, kwargs, skip_reason in MATRIX:
+            print(f"\n===== matrix: {label} =====")
+            if skip_reason:
+                print(f"SKIP {label}: {skip_reason}")
+                summary.append((label, "skipped", skip_reason))
+                continue
+            # run_once -> set_ip_protection/collect_results sys.exit on a failed
+            # run; VPN start in particular hits a transient "pass-unavailable"
+            # when toggled rapidly. Retry a few times, and never let one config
+            # abort the rest of the matrix.
+            result = None
+            for attempt in range(1, 4):
+                try:
+                    result = run_once(firefox, geckodriver, base_url,
+                                      debug=debug, label=label, **kwargs)
+                    break
+                except SystemExit as e:
+                    print(f"FAILED {label} (attempt {attempt}/3): {e}")
+                    if attempt < 3:
+                        time.sleep(10)
+            if result is None:
+                summary.append((label, "FAILED", "all attempts failed"))
+                continue
+            proxy = (result.get("proxy") or {}).get("httpVersion") or "-"
+            origin = (result.get("trace") or {}).get("http")
+            down = result.get("downloadBandwidth") or 0
+            up = result.get("uploadBandwidth") or 0
+            summary.append((label, f"proxy={proxy} origin={origin}",
+                            f"down={down / 1e6:.1f}Mbps up={up / 1e6:.1f}Mbps"))
+    finally:
+        server.shutdown()
+    print("\n===== matrix summary (confirmed at runtime) =====")
+    for row in summary:
+        print("  " + "  |  ".join(str(c) for c in row))
 
 
 def main() -> None:
@@ -436,6 +599,12 @@ def main() -> None:
         help="use the hardcoded custom build (see FIREFOX_CUSTOM_URL) "
              "instead of the latest Nightly",
     )
+    parser.add_argument(
+        "--matrix", action="store_true",
+        help="run the full comparison matrix (direct h1/h2, direct h3, VPN "
+             "h3-CONNECT, VPN h3-MASQUE) on the custom build, one result per "
+             "config; the h2-CONNECT config is skipped pending D304159",
+    )
     args = parser.parse_args()
 
     require_linux_x86_64()
@@ -443,44 +612,22 @@ def main() -> None:
     RESULTS.mkdir(exist_ok=True)
     PROFILE.mkdir(exist_ok=True)
 
-    firefox = ensure_firefox(FIREFOX_CUSTOM_URL if args.custom_firefox else FIREFOX_NIGHTLY_URL)
+    # The matrix always uses the custom build (configs 4/5 need it).
+    use_custom = args.custom_firefox or args.matrix
+    firefox = ensure_firefox(FIREFOX_CUSTOM_URL if use_custom else FIREFOX_NIGHTLY_URL)
     geckodriver = ensure_geckodriver()
     print(f"Using {firefox_version(firefox)}")
 
-    server, base_url = serve_page()
-    qs = []
-    if args.h3:
-        qs.append("h3=1")
-    if args.debug:
-        qs.append("debug=1")
-    url = base_url + (f"?{'&'.join(qs)}" if qs else "")
-    scrub_profile_test_stubs()
-    driver = build_driver(firefox, geckodriver)
-    try:
-        print(f"Serving {url}")
-        # Always flip the VPN toggle to the requested state — the persisted
-        # profile may have left it on from a previous run.
-        set_ip_protection(driver, args.vpn)
-        print("Running speed test...")
-        result = collect_results(driver, url)
-        if args.vpn:
-            result["proxy"] = collect_proxy_info(driver)
-    finally:
-        driver.quit()
-        server.shutdown()
+    if args.matrix:
+        run_matrix(firefox, geckodriver, debug=args.debug)
+        return
 
-    ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    parts = []
-    if args.debug:
-        parts.append("debug")
-    proxy = result.get("proxy")
-    if proxy:
-        parts.append(f"proxy-{http_version_short(proxy.get('httpVersion'))}")
-    parts.append(f"origin-{http_version_short((result.get('trace') or {}).get('http'))}")
-    parts.append(ts)
-    out_path = RESULTS / ("-".join(parts) + ".json")
-    out_path.write_text(json.dumps(result, indent=2))
-    print(f"Saved {out_path.relative_to(ROOT)}")
+    server, base_url = serve_page()
+    try:
+        run_once(firefox, geckodriver, base_url, vpn=args.vpn, h3=args.h3,
+                 debug=args.debug)
+    finally:
+        server.shutdown()
 
 
 if __name__ == "__main__":

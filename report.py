@@ -47,20 +47,25 @@ def summary_table(runs: list[dict]) -> str:
             return "—"
         version = p.get("httpVersion") or "?"
         return f"{version} → {p['host']}:{p['port']}"
+    def num(r: dict, key: str, scale: float = 1.0) -> str:
+        # Cloudflare's summary can carry null metrics (e.g. jitter when a
+        # measurement was skipped); render those as "—" instead of crashing.
+        v = (r.get("summary") or {}).get(key)
+        return "—" if v is None else f"{v / scale:.1f}"
     cols = [
         ("run", lambda r: r["label"]),
         ("colo",          lambda r: trace(r, "colo")),
         ("client ip",     lambda r: trace(r, "ip")),
         ("http (origin)", lambda r: trace(r, "http")),
         ("proxy",         proxy),
-        ("download (Mbps)", lambda r: f"{r['summary']['download'] / 1e6:.1f}"),
-        ("upload (Mbps)",   lambda r: f"{r['summary']['upload']   / 1e6:.1f}"),
-        ("latency idle (ms)",     lambda r: f"{r['summary']['latency']:.1f}"),
-        ("latency ↓load (ms)",    lambda r: f"{r['summary']['downLoadedLatency']:.1f}"),
-        ("latency ↑load (ms)",    lambda r: f"{r['summary']['upLoadedLatency']:.1f}"),
-        ("jitter idle (ms)",      lambda r: f"{r['summary']['jitter']:.1f}"),
-        ("jitter ↓load (ms)",     lambda r: f"{r['summary']['downLoadedJitter']:.1f}"),
-        ("jitter ↑load (ms)",     lambda r: f"{r['summary']['upLoadedJitter']:.1f}"),
+        ("download (Mbps)", lambda r: num(r, "download", 1e6)),
+        ("upload (Mbps)",   lambda r: num(r, "upload", 1e6)),
+        ("latency idle (ms)",     lambda r: num(r, "latency")),
+        ("latency ↓load (ms)",    lambda r: num(r, "downLoadedLatency")),
+        ("latency ↑load (ms)",    lambda r: num(r, "upLoadedLatency")),
+        ("jitter idle (ms)",      lambda r: num(r, "jitter")),
+        ("jitter ↓load (ms)",     lambda r: num(r, "downLoadedJitter")),
+        ("jitter ↑load (ms)",     lambda r: num(r, "upLoadedJitter")),
     ]
     thead = "".join(f"<th>{html.escape(name)}</th>" for name, _ in cols)
     rows = "".join(
