@@ -76,10 +76,12 @@ def short_name(r: dict) -> str:
 def load_runs() -> list[dict]:
     runs = []
     for p in sorted(RESULTS.glob("*.json")):
-        if p.name == "report.html":
-            continue
+        if p.name.endswith(".profile.json"):
+            continue  # Gecko profiler capture, not a speed-test result
         r = {"file": p.name, "ts": p.stem.rpartition("-")[2],
              **json.loads(p.read_text())}
+        prof = p.with_name(p.stem + ".profile.json")
+        r["profile_file"] = prof.name if prof.exists() else None
         r["facts"] = run_facts(r)
         r["name"] = short_name(r)
         runs.append(r)
@@ -129,13 +131,16 @@ def run_sections(runs: list[dict]) -> str:
                  ("Client IP (seen by Cloudflare)", trace.get("ip", "-")),
                  ("Run time", pretty_ts(r.get("ts", ""))),
                  ("Result file", r["file"])]
+        if r.get("profile_file"):
+            rows.append(("Profiler profile (Networking preset)",
+                         r["profile_file"]))
         dl = "".join(
             f"<dt>{html.escape(k)}</dt><dd>{html.escape(str(v))}</dd>"
             for k, v in rows
         )
         out.append(
-            f"<section class='run'><h3>{html.escape(r['name'])}</h3>"
-            f"<p>{expl}</p><dl>{dl}</dl></section>"
+            f"<details class='run'><summary>{html.escape(r['name'])}</summary>"
+            f"<p>{expl}</p><dl>{dl}</dl></details>"
         )
     return "".join(out)
 
@@ -213,15 +218,18 @@ table { border-collapse: collapse; margin: 1em 0; width: 100%; }
 th, td { border: 1px solid #ccc; padding: 0.4em 0.8em; text-align: right; }
 th:first-child, td:first-child { text-align: left; }
 th { background: #f4f4f4; }
-section.run { border: 1px solid #dde; border-left: 4px solid #4a90d9;
+hr { border: none; border-top: 1px solid #ccc; margin: 2em 0; }
+.note { color: #555; font-size: .9em; max-width: 75ch; }
+details.run { border: 1px solid #dde; border-left: 4px solid #4a90d9;
               border-radius: 5px; padding: .4em 1.1em; margin: 1em 0;
               background: #fafcff; }
-section.run h3 { margin: .4em 0 .2em; }
-section.run p { margin: .2em 0 .6em; }
-section.run dl { display: grid; grid-template-columns: max-content 1fr;
+details.run summary { cursor: pointer; font-weight: 600; font-size: 1.1em;
+                      margin: .2em 0; }
+details.run p { margin: .5em 0 .6em; }
+details.run dl { display: grid; grid-template-columns: max-content 1fr;
                 gap: .15em 1.2em; margin: 0; }
-section.run dt { font-weight: 600; color: #555; }
-section.run dd { margin: 0; font-family: ui-monospace, monospace; font-size: .92em; }
+details.run dt { font-weight: 600; color: #555; }
+details.run dd { margin: 0; font-family: ui-monospace, monospace; font-size: .92em; }
 code { background: #eef; padding: 0 .25em; border-radius: 3px; }
 """
 
@@ -258,7 +266,15 @@ def main() -> None:
         "vs <a href='https://www.rfc-editor.org/rfc/rfc9298'>MASQUE connect-udp</a>), "
         "and the HTTP version negotiated with Cloudflare.</p>"
         f"<h2>Connection paths compared ({len(runs)})</h2>" + run_sections(runs)
-        + metrics_table(runs)
+        + "<hr>" + metrics_table(runs)
+        + "<p class='note'>Why some sizes/paths have no box below: (1) download "
+        "and upload measure different transfer-size sets (download 100 kB to "
+        "250 MB, upload 100 kB to 50 MB), so a size in one chart need not appear "
+        "in the other; (2) the Cloudflare speed test caps the time spent per "
+        "transfer size and adaptively skips the larger sizes once its running "
+        "bandwidth estimate says they would exceed that budget, so slower paths "
+        "(most visibly MASQUE) collect no samples for the big sizes, and even "
+        "fast paths sometimes drop the very largest.</p>"
         + "".join(graphs)
         + "</body></html>"
     )
