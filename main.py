@@ -35,14 +35,16 @@ FIREFOX_NIGHTLY_URL = (
     "https://download.mozilla.org/?product=firefox-nightly-latest-ssl"
     "&os=linux64&lang=en-US"
 )
-# Build of the try push that lets the IP-protection proxy carry HTTP/3 to the
-# origin (connect-udp inner), not just to the proxy. Used by `--custom-firefox`.
-# Try rev: bc9bc791bad0, "Skip Alt-Svc validation to allow h3 outer VPN
-# connection" (Bug 2005211): marks Alt-Svc h3 mappings validated immediately,
-# since the speculative validation can't traverse the proxy CONNECT tunnel.
+# Build of the try push for IP-protection HTTP/3 experiments. Used by
+# `--custom-firefox`. It carries HTTP/3 to the origin (connect-udp inner) via
+# the Alt-Svc-validation-skip patch (Bug 2005211), includes D304159 (Bug
+# 2043768, "Honor http2/http3 prefs in Happy Eyeballs v3"), and gates the
+# synthesized MASQUE-primary entry on network.http.http3.enable in
+# IPProtectionServerlist so disabling that pref leaves the plain CONNECT entry,
+# forcing an HTTP/2 CONNECT proxy hop (matrix config 3).
 FIREFOX_CUSTOM_URL = (
     "https://firefox-ci-tc.services.mozilla.com/api/queue/v1/task/"
-    "Y_qQJGw4S4Sda1ML9OIr7A/runs/0/artifacts/public/build/target.tar.xz"
+    "W0DwkqlJTqGYtbKYGqr9iA/runs/0/artifacts/public/build/target.tar.xz"
 )
 # Origin whose h3 Alt-Svc we prime before a --vpn --h3 run (see prime_h3_altsvc).
 H3_PRIME_URL = "https://bastion.h3.speed.cloudflare.com/cdn-cgi/trace"
@@ -183,7 +185,8 @@ def scrub_profile_test_stubs() -> None:
         print(f"Scrubbed {len(original) - len(kept)} stub pref(s) from prefs.js")
 
 
-def build_driver(firefox: Path, geckodriver: Path) -> webdriver.Firefox:
+def build_driver(firefox: Path, geckodriver: Path,
+                 extra_prefs: dict | None = None) -> webdriver.Firefox:
     options = Options()
     options.binary_location = str(firefox)
     # Headed so progress is visible during local development. Flip for CI.
@@ -212,6 +215,10 @@ def build_driver(firefox: Path, geckodriver: Path) -> webdriver.Firefox:
             "*://bastion.h3.speed.cloudflare.com/*",
         ]),
     )
+    # Caller-supplied prefs applied at launch (e.g. network.http.http3.enable),
+    # so they take effect before any connection rather than mid-session.
+    for key, value in (extra_prefs or {}).items():
+        options.set_preference(key, value)
     # Clear LD_LIBRARY_PATH inherited from the parent shell: Firefox devs
     # often point it at a local ASAN build, which breaks the downloaded
     # Nightly's updater and makes Firefox exit 127 before Marionette comes up.
@@ -439,6 +446,47 @@ def prime_h3_altsvc(driver: webdriver.Firefox) -> None:
     time.sleep(2)
 
 
+# Firefox Profiler "Networking" preset, from the devtools definition in
+# devtools/shared/performance-new/prefs-presets.sys.mjs (networking). The
+# upstream preset also lists "java" (Android Java-stack sampling); dropped here
+# since it is a no-op on desktop Linux.
+PROFILER_ENTRIES = 128 * 1024 * 1024
+PROFILER_INTERVAL = 1
+PROFILER_FEATURES = ["screenshots", "js", "stackwalk", "cpu", "processcpu",
+                     "bandwidth", "memory"]
+PROFILER_THREADS = ["Cache2 I/O", "Compositor", "DNS Resolver", "DOM Worker",
+                    "GeckoMain", "Renderer", "Socket Thread", "StreamTrans",
+                    "SwComposite", "TRR Background"]
+
+
+def start_profiler(driver: webdriver.Firefox) -> None:
+    """Start the Gecko profiler with the Firefox Profiler 'Networking' preset."""
+    print("Starting profiler (Networking preset)...")
+    with driver.context(driver.CONTEXT_CHROME):
+        driver.execute_script(
+            "const [entries, interval, features, threads] = arguments;"
+            "Services.profiler.StartProfiler(entries, interval, features, threads);",
+            PROFILER_ENTRIES, PROFILER_INTERVAL, PROFILER_FEATURES, PROFILER_THREADS,
+        )
+
+
+def capture_profiler(driver: webdriver.Firefox, path: Path) -> None:
+    """Dump the collected profile to `path` (load it at profiler.firefox.com),
+    then stop the profiler. The target directory must already exist."""
+    driver.set_script_timeout(180)
+    with driver.context(driver.CONTEXT_CHROME):
+        err = driver.execute_async_script(
+            "const filename = arguments[0];"
+            "const done = arguments[arguments.length - 1];"
+            "Services.profiler.dumpProfileToFileAsync(filename).then("
+            "  () => { Services.profiler.StopProfiler(); done(null); },"
+            "  e => done(String(e)));",
+            str(path),
+        )
+    if err:
+        raise RuntimeError(err)
+
+
 def collect_results(driver: webdriver.Firefox, url: str, timeout_s: int = 300) -> dict:
     driver.get(url)
     deadline = time.monotonic() + timeout_s
@@ -451,18 +499,6 @@ def collect_results(driver: webdriver.Firefox, url: str, timeout_s: int = 300) -
             return result
         time.sleep(1)
     sys.exit(f"speed test did not complete within {timeout_s}s")
-
-
-def set_http3_enabled(driver: webdriver.Firefox, enabled: bool) -> None:
-    """Toggle HTTP/3 globally. NOTE: *disabling* is only honored by Happy
-    Eyeballs v3 once Bug 2043768 (phab D304159, "Honor http2/http3 prefs in
-    HEv3") lands; until then h3 is still attempted despite this pref, which is
-    why the matrix's h2-CONNECT config is skipped."""
-    with driver.context(driver.CONTEXT_CHROME):
-        driver.execute_script(
-            "Services.prefs.setBoolPref('network.http.http3.enable', arguments[0]);",
-            enabled,
-        )
 
 
 def save_result(result: dict, *, debug: bool, label: str | None = None) -> Path:
@@ -485,7 +521,7 @@ def save_result(result: dict, *, debug: bool, label: str | None = None) -> Path:
 
 def run_once(firefox: Path, geckodriver: Path, base_url: str, *, vpn: bool,
              h3: bool, debug: bool, disable_h3: bool = False,
-             label: str | None = None) -> dict:
+             label: str | None = None, profile: bool = False) -> dict:
     """Run a single speed test in its own Firefox session and save the result.
     Returns the result dict (with the negotiated proxy hop + origin protocol,
     so callers can confirm what actually happened at runtime)."""
@@ -496,7 +532,13 @@ def run_once(firefox: Path, geckodriver: Path, base_url: str, *, vpn: bool,
         qs.append("debug=1")
     url = base_url + (f"?{'&'.join(qs)}" if qs else "")
     scrub_profile_test_stubs()
-    driver = build_driver(firefox, geckodriver)
+    # Set the h3 pref at launch (before any connection) so the proxy comes up on
+    # the intended transport: h2 CONNECT when h3 is disabled, h3/connect-udp when
+    # enabled. Set explicitly every run so a value persisted by a prior
+    # disable_h3 run can't leak in.
+    driver = build_driver(firefox, geckodriver,
+                          extra_prefs={"network.http.http3.enable": not disable_h3})
+    prof_tmp = None
     try:
         print(f"Serving {url}")
         # Always flip the VPN toggle to the requested state, the persisted
@@ -504,21 +546,32 @@ def run_once(firefox: Path, geckodriver: Path, base_url: str, *, vpn: bool,
         set_ip_protection(driver, vpn)
         if vpn:
             disable_http_cache(driver)
-        if disable_h3:
-            set_http3_enabled(driver, False)
         # For h3 over the VPN we must prime the origin's Alt-Svc and force fresh
         # connections, otherwise the speedtest reuses the initial h2 tunnel.
         if vpn and h3:
             prime_h3_altsvc(driver)
+        if profile:
+            start_profiler(driver)
         print("Running speed test...")
         result = collect_results(driver, url)
         if vpn:
             result["proxy"] = collect_proxy_info(driver)
+        if profile:
+            prof_tmp = CACHE / "fireflare-profile.json"
+            try:
+                capture_profiler(driver, prof_tmp)
+            except Exception as e:
+                print(f"profiler capture failed: {e}")
+                prof_tmp = None
     finally:
         driver.quit()
     if label:
         result["config"] = label
-    save_result(result, debug=debug, label=label)
+    out_path = save_result(result, debug=debug, label=label)
+    if prof_tmp and prof_tmp.exists():
+        prof_path = out_path.with_name(out_path.stem + ".profile.json")
+        shutil.move(str(prof_tmp), str(prof_path))
+        print(f"Saved {prof_path.relative_to(ROOT)}")
     return result
 
 
@@ -530,15 +583,14 @@ MATRIX = [
     # label, run_once kwargs, skip_reason
     ("1-direct-h1h2",    dict(vpn=False, h3=False), None),
     ("2-direct-h3",      dict(vpn=False, h3=True),  None),
-    ("3-proxy-h2connect", dict(vpn=True, h3=False, disable_h3=True),
-     "needs Bug 2043768 / D304159 (honor http3.enable in HEv3) to land before "
-     "h3 can be disabled to force an h2 CONNECT proxy hop"),
+    ("3-proxy-h2connect", dict(vpn=True, h3=False, disable_h3=True), None),
     ("4-proxy-h3connect", dict(vpn=True, h3=False), None),
     ("5-proxy-h3masque",  dict(vpn=True, h3=True),  None),
 ]
 
 
-def run_matrix(firefox: Path, geckodriver: Path, *, debug: bool) -> None:
+def run_matrix(firefox: Path, geckodriver: Path, *, debug: bool,
+               profile: bool = False) -> None:
     server, base_url = serve_page()
     summary = []
     try:
@@ -555,8 +607,8 @@ def run_matrix(firefox: Path, geckodriver: Path, *, debug: bool) -> None:
             result = None
             for attempt in range(1, 4):
                 try:
-                    result = run_once(firefox, geckodriver, base_url,
-                                      debug=debug, label=label, **kwargs)
+                    result = run_once(firefox, geckodriver, base_url, debug=debug,
+                                      label=label, profile=profile, **kwargs)
                     break
                 except SystemExit as e:
                     print(f"FAILED {label} (attempt {attempt}/3): {e}")
@@ -602,8 +654,14 @@ def main() -> None:
     parser.add_argument(
         "--matrix", action="store_true",
         help="run the full comparison matrix (direct h1/h2, direct h3, VPN "
-             "h3-CONNECT, VPN h3-MASQUE) on the custom build, one result per "
-             "config; the h2-CONNECT config is skipped pending D304159",
+             "h2-CONNECT, VPN h3-CONNECT, VPN h3-MASQUE) on the custom build, "
+             "one result per config",
+    )
+    parser.add_argument(
+        "--profile", action="store_true",
+        help="capture a Firefox Profiler profile (Networking preset) during "
+             "each run, saved next to the result as <name>.profile.json "
+             "(load at profiler.firefox.com)",
     )
     args = parser.parse_args()
 
@@ -619,13 +677,13 @@ def main() -> None:
     print(f"Using {firefox_version(firefox)}")
 
     if args.matrix:
-        run_matrix(firefox, geckodriver, debug=args.debug)
+        run_matrix(firefox, geckodriver, debug=args.debug, profile=args.profile)
         return
 
     server, base_url = serve_page()
     try:
         run_once(firefox, geckodriver, base_url, vpn=args.vpn, h3=args.h3,
-                 debug=args.debug)
+                 debug=args.debug, profile=args.profile)
     finally:
         server.shutdown()
 
