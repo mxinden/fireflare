@@ -2,11 +2,15 @@
 
 Drives Firefox Nightly to run the [`@cloudflare/speedtest`](https://github.com/cloudflare/speedtest) library (loaded from esm.sh via a local HTML page), records throughput, latency, jitter, plus per-measurement points, and saves structured JSON results. A separate `report.py` renders the JSON files as a self-contained HTML report (summary table + boxplots).
 
+## Report
+
+A rendered comparison report is checked in at [results/report.html](results/report.html): five connection paths side by side, direct HTTP/1.1, direct HTTP/3, and Firefox's in-browser IP-protection (VPN) proxy reached three ways (HTTP/2 CONNECT, HTTP/3 CONNECT, and HTTP/3 MASQUE connect-udp), with throughput, latency, and jitter per path. Generate the data with `uv run main.py --matrix`, then render with `uv run report.py`.
+
 ## Status
 
 - **Direct baseline** works (`uv run main.py`).
 - **HTTP/3 variant** works (`uv run main.py --h3`, points the library at `bastion.h3.speed.cloudflare.com`).
-- **In-browser VPN (IP protection)** works (`uv run main.py --vpn`), routes speedtest traffic through Firefox's IP protection / Fastly proxy. Two independent layers matter and the report surfaces both. (1) **Transport to the proxy** (Firefox to the Fastly server): HTTP/2 on Nightly, HTTP/3 with connect-udp negotiated under `--custom-firefox` (a try build). (2) **Destination tunnel method** (how the origin is reached through the proxy): classic CONNECT in both cases, so the origin negotiates h2. An h3 transport to the proxy does not imply MASQUE to the origin. End-to-end MASQUE (connect-udp to the origin, which would let the origin be h3) does not yet establish: Firefox attempts it but falls back to CONNECT.
+- **In-browser VPN (IP protection)** works (`uv run main.py --vpn`), routing speedtest traffic through Firefox's IP protection / Fastly proxy. Two layers matter and the report surfaces both: the transport to the proxy (HTTP/2 CONNECT, or HTTP/3 with `--custom-firefox`), and how the origin is reached through it (classic CONNECT, or MASQUE connect-udp). With `--custom-firefox` and Alt-Svc priming, end-to-end MASQUE works: the origin connection itself is HTTP/3 (connect-udp) through the proxy.
 
 ## Requirements
 
@@ -34,23 +38,16 @@ The persistent profile lives at `./profile/` (gitignored) and is reused across r
 ## Run
 
 ```
-uv run main.py                # direct baseline
-uv run main.py --h3           # force h3.speed.cloudflare.com endpoint
-uv run main.py --vpn          # route through IP protection (h2 CONNECT proxy hop)
-uv run main.py --vpn --h3     # IP protection + h3 origin endpoint
-uv run main.py --vpn --h3 --custom-firefox   # h3 transport to proxy, origin still CONNECT/h2 (try build)
+uv run main.py                # direct baseline (HTTP/1.1)
+uv run main.py --h3           # direct HTTP/3 (bastion.h3.speed.cloudflare.com)
+uv run main.py --vpn          # route through IP protection (HTTP/2 CONNECT proxy hop)
+uv run main.py --vpn --h3 --custom-firefox   # end-to-end HTTP/3 over MASQUE (try build)
+uv run main.py --matrix       # all five comparison paths, one result JSON each
+uv run main.py --matrix --profile   # also capture a Firefox Profiler "Networking" profile per run
 uv run main.py --debug        # tiny measurement set; for plumbing changes
 ```
 
 Output JSON files land in `results/`, named `<tag>-<utc-timestamp>.json`. The tag records, in order: `debug` (only with `--debug`); on `--vpn` runs `proxy-<v>` for the transport to the proxy (`h3` = QUIC with connect-udp negotiated to the proxy, `h2` = TCP CONNECT); and `origin-<v>` for the HTTP version negotiated with the origin, which reflects the destination tunnel method (`h2` = CONNECT, `h3` = connect-udp end to end).
-
-## Report
-
-```
-uv run report.py
-```
-
-Writes `results/report.html` (self-contained, Plotly JS inlined). Summary table shows colo, client IP, origin HTTP version, proxy hop (for `--vpn` runs), throughput, latency, and jitter per run; boxplots show per-request bandwidth by transfer size and latency distributions.
 
 ## License
 
