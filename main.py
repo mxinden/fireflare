@@ -36,15 +36,22 @@ FIREFOX_NIGHTLY_URL = (
     "&os=linux64&lang=en-US"
 )
 # Build of the try push for IP-protection HTTP/3 experiments. Used by
-# `--custom-firefox`. It carries HTTP/3 to the origin (connect-udp inner) via
-# the Alt-Svc-validation-skip patch (Bug 2005211), includes D304159 (Bug
-# 2043768, "Honor http2/http3 prefs in Happy Eyeballs v3"), and gates the
-# synthesized MASQUE-primary entry on network.http.http3.enable in
-# IPProtectionServerlist so disabling that pref leaves the plain CONNECT entry,
-# forcing an HTTP/2 CONNECT proxy hop (matrix config 3).
+# `--custom-firefox`. Three patches on top of mozilla-central:
+# - Skip Alt-Svc route validation (Bug 2005211), which is what lets HTTP/3 reach
+#   the origin (connect-udp inner).
+# - Synthesize a MASQUE (connect-udp) primary entry in IPProtectionServerlist,
+#   gated on network.http.http3.enable, so disabling that pref leaves only the
+#   plain CONNECT entry and forces an HTTP/2 CONNECT proxy hop (matrix config 3).
+# - Proxy remote subresources of loopback-hosted pages: drops the
+#   loopback-principal exclusion in IPPExceptionsManager and keeps loopback
+#   destinations direct via a guard in IPPChannelFilter, so the speedtest page we
+#   serve from 127.0.0.1 has its Cloudflare requests actually proxied. Without
+#   it every --vpn run silently measures a direct connection.
+# D304159 (Bug 2043768, "Honor http2/http3 prefs in Happy Eyeballs v3") is now in
+# mozilla-central, so it comes from base main rather than as a separate patch.
 FIREFOX_CUSTOM_URL = (
     "https://firefox-ci-tc.services.mozilla.com/api/queue/v1/task/"
-    "W0DwkqlJTqGYtbKYGqr9iA/runs/0/artifacts/public/build/target.tar.xz"
+    "TR2POws1QXKQ3Ab-RyQNNA/runs/0/artifacts/public/build/target.tar.xz"
 )
 # Origin whose h3 Alt-Svc we prime before a --vpn --h3 run (see prime_h3_altsvc).
 H3_PRIME_URL = "https://bastion.h3.speed.cloudflare.com/cdn-cgi/trace"

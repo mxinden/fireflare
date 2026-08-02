@@ -1,0 +1,1181 @@
+{
+  "downLoadedLatencyPoints": [
+    84,
+    86,
+    31,
+    87,
+    23,
+    86,
+    32,
+    83,
+    23,
+    159,
+    204,
+    387,
+    24,
+    275,
+    367,
+    334,
+    307,
+    282,
+    278,
+    270,
+    273,
+    264,
+    258,
+    246,
+    239,
+    227,
+    226,
+    68,
+    203,
+    209,
+    201,
+    185,
+    188,
+    186,
+    183,
+    175,
+    155,
+    171,
+    149,
+    132,
+    134,
+    116,
+    24,
+    104,
+    134,
+    133,
+    126,
+    37
+  ],
+  "downloadBandwidth": 803222489.9598393,
+  "downloadBandwidthPoints": [
+    {
+      "bps": 16048000,
+      "bytes": 100000,
+      "duration": 50,
+      "measTime": "2026-08-02T08:52:43.231Z",
+      "ping": 23,
+      "serverTime": 19,
+      "transferSize": 100300
+    },
+    {
+      "bps": 25883870.967741936,
+      "bytes": 100000,
+      "duration": 31,
+      "measTime": "2026-08-02T08:52:46.884Z",
+      "ping": 24,
+      "serverTime": 21,
+      "transferSize": 100300
+    },
+    {
+      "bps": 29718518.51851852,
+      "bytes": 100000,
+      "duration": 27,
+      "measTime": "2026-08-02T08:52:46.942Z",
+      "ping": 24,
+      "serverTime": 29,
+      "transferSize": 100300
+    },
+    {
+      "bps": 29718518.51851852,
+      "bytes": 100000,
+      "duration": 27,
+      "measTime": "2026-08-02T08:52:47.140Z",
+      "ping": 23,
+      "serverTime": 168,
+      "transferSize": 100300
+    },
+    {
+      "bps": 29718518.51851852,
+      "bytes": 100000,
+      "duration": 27,
+      "measTime": "2026-08-02T08:52:47.193Z",
+      "ping": 24,
+      "serverTime": 25,
+      "transferSize": 100300
+    },
+    {
+      "bps": 29718518.51851852,
+      "bytes": 100000,
+      "duration": 27,
+      "measTime": "2026-08-02T08:52:47.241Z",
+      "ping": 23,
+      "serverTime": 19,
+      "transferSize": 100300
+    },
+    {
+      "bps": 29718518.51851852,
+      "bytes": 100000,
+      "duration": 27,
+      "measTime": "2026-08-02T08:52:47.289Z",
+      "ping": 22,
+      "serverTime": 20,
+      "transferSize": 100300
+    },
+    {
+      "bps": 29718518.51851852,
+      "bytes": 100000,
+      "duration": 27,
+      "measTime": "2026-08-02T08:52:47.334Z",
+      "ping": 23,
+      "serverTime": 17,
+      "transferSize": 100300
+    },
+    {
+      "bps": 29718518.51851852,
+      "bytes": 100000,
+      "duration": 27,
+      "measTime": "2026-08-02T08:52:47.526Z",
+      "ping": 24,
+      "serverTime": 164,
+      "transferSize": 100300
+    },
+    {
+      "bps": 29718518.51851852,
+      "bytes": 100000,
+      "duration": 27,
+      "measTime": "2026-08-02T08:52:47.590Z",
+      "ping": 24,
+      "serverTime": 35,
+      "transferSize": 100300
+    },
+    {
+      "bps": 30861538.461538464,
+      "bytes": 100000,
+      "duration": 26,
+      "measTime": "2026-08-02T08:52:47.636Z",
+      "ping": 23,
+      "serverTime": 18,
+      "transferSize": 100300
+    },
+    {
+      "bps": 29718518.51851852,
+      "bytes": 100000,
+      "duration": 27,
+      "measTime": "2026-08-02T08:52:47.687Z",
+      "ping": 24,
+      "serverTime": 22,
+      "transferSize": 100300
+    },
+    {
+      "bps": 29718518.51851852,
+      "bytes": 100000,
+      "duration": 27,
+      "measTime": "2026-08-02T08:52:47.732Z",
+      "ping": 24,
+      "serverTime": 16,
+      "transferSize": 100300
+    },
+    {
+      "bps": 28657142.85714286,
+      "bytes": 100000,
+      "duration": 28,
+      "measTime": "2026-08-02T08:52:47.925Z",
+      "ping": 23,
+      "serverTime": 164,
+      "transferSize": 100300
+    },
+    {
+      "bps": 30861538.461538464,
+      "bytes": 100000,
+      "duration": 26,
+      "measTime": "2026-08-02T08:52:47.992Z",
+      "ping": 23,
+      "serverTime": 39,
+      "transferSize": 100300
+    },
+    {
+      "bps": 28657142.85714286,
+      "bytes": 100000,
+      "duration": 28,
+      "measTime": "2026-08-02T08:52:48.042Z",
+      "ping": 25,
+      "serverTime": 20,
+      "transferSize": 100300
+    },
+    {
+      "bps": 123113846.15384614,
+      "bytes": 1000000,
+      "duration": 65,
+      "measTime": "2026-08-02T08:52:48.137Z",
+      "ping": 23,
+      "serverTime": 26,
+      "transferSize": 1000300
+    },
+    {
+      "bps": 186102325.58139536,
+      "bytes": 1000000,
+      "duration": 43,
+      "measTime": "2026-08-02T08:52:48.422Z",
+      "ping": 27,
+      "serverTime": 240,
+      "transferSize": 1000300
+    },
+    {
+      "bps": 235364705.88235292,
+      "bytes": 1000000,
+      "duration": 34,
+      "measTime": "2026-08-02T08:52:48.483Z",
+      "ping": 23,
+      "serverTime": 24,
+      "transferSize": 1000300
+    },
+    {
+      "bps": 258141935.48387095,
+      "bytes": 1000000,
+      "duration": 31,
+      "measTime": "2026-08-02T08:52:48.700Z",
+      "ping": 23,
+      "serverTime": 184,
+      "transferSize": 1000300
+    },
+    {
+      "bps": 242496969.6969697,
+      "bytes": 1000000,
+      "duration": 33,
+      "measTime": "2026-08-02T08:52:48.755Z",
+      "ping": 25,
+      "serverTime": 20,
+      "transferSize": 1000300
+    },
+    {
+      "bps": 250075000,
+      "bytes": 1000000,
+      "duration": 32,
+      "measTime": "2026-08-02T08:52:48.814Z",
+      "ping": 24,
+      "serverTime": 24,
+      "transferSize": 1000300
+    },
+    {
+      "bps": 242496969.6969697,
+      "bytes": 1000000,
+      "duration": 33,
+      "measTime": "2026-08-02T08:52:48.868Z",
+      "ping": 23,
+      "serverTime": 19,
+      "transferSize": 1000300
+    },
+    {
+      "bps": 258141935.48387095,
+      "bytes": 1000000,
+      "duration": 31,
+      "measTime": "2026-08-02T08:52:49.049Z",
+      "ping": 23,
+      "serverTime": 147,
+      "transferSize": 1000300
+    },
+    {
+      "bps": 242496969.6969697,
+      "bytes": 1000000,
+      "duration": 33,
+      "measTime": "2026-08-02T08:52:49.106Z",
+      "ping": 24,
+      "serverTime": 21,
+      "transferSize": 1000300
+    },
+    {
+      "bps": 258141935.48387095,
+      "bytes": 1000000,
+      "duration": 31,
+      "measTime": "2026-08-02T08:52:49.172Z",
+      "ping": 24,
+      "serverTime": 33,
+      "transferSize": 1000300
+    },
+    {
+      "bps": 258141935.48387095,
+      "bytes": 1000000,
+      "duration": 31,
+      "measTime": "2026-08-02T08:52:49.236Z",
+      "ping": 22,
+      "serverTime": 30,
+      "transferSize": 1000300
+    },
+    {
+      "bps": 250075000,
+      "bytes": 1000000,
+      "duration": 32,
+      "measTime": "2026-08-02T08:52:49.299Z",
+      "ping": 24,
+      "serverTime": 28,
+      "transferSize": 1000300
+    },
+    {
+      "bps": 242496969.6969697,
+      "bytes": 1000000,
+      "duration": 33,
+      "measTime": "2026-08-02T08:52:49.503Z",
+      "ping": 24,
+      "serverTime": 169,
+      "transferSize": 1000300
+    },
+    {
+      "bps": 250075000,
+      "bytes": 1000000,
+      "duration": 32,
+      "measTime": "2026-08-02T08:52:49.573Z",
+      "ping": 24,
+      "serverTime": 36,
+      "transferSize": 1000300
+    },
+    {
+      "bps": 258141935.48387095,
+      "bytes": 1000000,
+      "duration": 31,
+      "measTime": "2026-08-02T08:52:49.643Z",
+      "ping": 23,
+      "serverTime": 35,
+      "transferSize": 1000300
+    },
+    {
+      "bps": 677986440.6779661,
+      "bytes": 10000000,
+      "duration": 118,
+      "measTime": "2026-08-02T08:52:51.651Z",
+      "ping": 23,
+      "serverTime": 17,
+      "transferSize": 10000300
+    },
+    {
+      "bps": 727294545.4545455,
+      "bytes": 10000000,
+      "duration": 110,
+      "measTime": "2026-08-02T08:52:51.798Z",
+      "ping": 24,
+      "serverTime": 21,
+      "transferSize": 10000300
+    },
+    {
+      "bps": 677986440.6779661,
+      "bytes": 10000000,
+      "duration": 118,
+      "measTime": "2026-08-02T08:52:51.964Z",
+      "ping": 25,
+      "serverTime": 28,
+      "transferSize": 10000300
+    },
+    {
+      "bps": 707985840.7079645,
+      "bytes": 10000000,
+      "duration": 113,
+      "measTime": "2026-08-02T08:52:52.114Z",
+      "ping": 26,
+      "serverTime": 18,
+      "transferSize": 10000300
+    },
+    {
+      "bps": 625018750,
+      "bytes": 10000000,
+      "duration": 128,
+      "measTime": "2026-08-02T08:52:52.407Z",
+      "ping": 25,
+      "serverTime": 149,
+      "transferSize": 10000300
+    },
+    {
+      "bps": 655757377.0491804,
+      "bytes": 10000000,
+      "duration": 122,
+      "measTime": "2026-08-02T08:52:52.576Z",
+      "ping": 25,
+      "serverTime": 31,
+      "transferSize": 10000300
+    },
+    {
+      "bps": 629940157.480315,
+      "bytes": 10000000,
+      "duration": 127,
+      "measTime": "2026-08-02T08:52:52.892Z",
+      "ping": 24,
+      "serverTime": 174,
+      "transferSize": 10000300
+    },
+    {
+      "bps": 695673043.4782609,
+      "bytes": 10000000,
+      "duration": 115,
+      "measTime": "2026-08-02T08:52:53.047Z",
+      "ping": 22,
+      "serverTime": 23,
+      "transferSize": 10000300
+    },
+    {
+      "bps": 720742342.3423424,
+      "bytes": 10000000,
+      "duration": 111,
+      "measTime": "2026-08-02T08:52:53.201Z",
+      "ping": 24,
+      "serverTime": 28,
+      "transferSize": 10000300
+    },
+    {
+      "bps": 610705343.5114504,
+      "bytes": 10000000,
+      "duration": 131,
+      "measTime": "2026-08-02T08:52:53.496Z",
+      "ping": 28,
+      "serverTime": 144,
+      "transferSize": 10000300
+    },
+    {
+      "bps": 727294545.4545455,
+      "bytes": 10000000,
+      "duration": 110,
+      "measTime": "2026-08-02T08:52:53.644Z",
+      "ping": 24,
+      "serverTime": 19,
+      "transferSize": 10000300
+    },
+    {
+      "bps": 322590322.58064514,
+      "bytes": 10000000,
+      "duration": 248,
+      "measTime": "2026-08-02T08:52:53.939Z",
+      "ping": 23,
+      "serverTime": 27,
+      "transferSize": 10000300
+    },
+    {
+      "bps": 803222489.9598393,
+      "bytes": 25000000,
+      "duration": 249,
+      "measTime": "2026-08-02T08:53:00.042Z",
+      "ping": 25,
+      "serverTime": 21,
+      "transferSize": 25000300
+    },
+    {
+      "bps": 760465399.2395437,
+      "bytes": 25000000,
+      "duration": 263,
+      "measTime": "2026-08-02T08:53:00.522Z",
+      "ping": 24,
+      "serverTime": 169,
+      "transferSize": 25000300
+    },
+    {
+      "bps": 536199463.80697054,
+      "bytes": 25000000,
+      "duration": 373,
+      "measTime": "2026-08-02T08:53:00.950Z",
+      "ping": 25,
+      "serverTime": 20,
+      "transferSize": 25000300
+    },
+    {
+      "bps": 829885477.1784233,
+      "bytes": 25000000,
+      "duration": 241,
+      "measTime": "2026-08-02T08:53:01.244Z",
+      "ping": 23,
+      "serverTime": 16,
+      "transferSize": 25000300
+    },
+    {
+      "bps": 757584848.4848485,
+      "bytes": 25000000,
+      "duration": 264,
+      "measTime": "2026-08-02T08:53:01.647Z",
+      "ping": 24,
+      "serverTime": 99,
+      "transferSize": 25000300
+    },
+    {
+      "bps": 793660317.4603175,
+      "bytes": 25000000,
+      "duration": 252,
+      "measTime": "2026-08-02T08:53:01.983Z",
+      "ping": 26,
+      "serverTime": 45,
+      "transferSize": 25000300
+    },
+    {
+      "bps": 704233802.8169014,
+      "bytes": 25000000,
+      "duration": 284,
+      "measTime": "2026-08-02T08:53:02.340Z",
+      "ping": 24,
+      "serverTime": 23,
+      "transferSize": 25000300
+    },
+    {
+      "bps": 806461290.3225807,
+      "bytes": 25000000,
+      "duration": 248,
+      "measTime": "2026-08-02T08:53:02.665Z",
+      "ping": 23,
+      "serverTime": 41,
+      "transferSize": 25000300
+    },
+    {
+      "bps": 892859821.4285715,
+      "bytes": 100000000,
+      "duration": 896,
+      "measTime": "2026-08-02T08:53:10.398Z",
+      "ping": 23,
+      "serverTime": 21,
+      "transferSize": 100000300
+    },
+    {
+      "bps": 891864437.0122631,
+      "bytes": 100000000,
+      "duration": 897,
+      "measTime": "2026-08-02T08:53:11.462Z",
+      "ping": 24,
+      "serverTime": 23,
+      "transferSize": 100000300
+    },
+    {
+      "bps": 890871269.4877505,
+      "bytes": 100000000,
+      "duration": 898,
+      "measTime": "2026-08-02T08:53:12.533Z",
+      "ping": 22,
+      "serverTime": 27,
+      "transferSize": 100000300
+    },
+    {
+      "bps": 858371673.8197424,
+      "bytes": 100000000,
+      "duration": 932,
+      "measTime": "2026-08-02T08:53:13.632Z",
+      "ping": 23,
+      "serverTime": 22,
+      "transferSize": 100000300
+    },
+    {
+      "bps": 321415186.8220169,
+      "bytes": 100000000,
+      "duration": 2489,
+      "measTime": "2026-08-02T08:53:16.294Z",
+      "ping": 23,
+      "serverTime": 21,
+      "transferSize": 100000300
+    },
+    {
+      "bps": 235294823.52941176,
+      "bytes": 100000000,
+      "duration": 3400,
+      "measTime": "2026-08-02T08:53:19.858Z",
+      "ping": 24,
+      "serverTime": 16,
+      "transferSize": 100000300
+    },
+    {
+      "bps": 297265517.2413793,
+      "bytes": 250000000,
+      "duration": 6728,
+      "measTime": "2026-08-02T08:53:34.102Z",
+      "ping": 24,
+      "serverTime": 20,
+      "transferSize": 250000300
+    },
+    {
+      "bps": 388500854.7008547,
+      "bytes": 250000000,
+      "duration": 5148,
+      "measTime": "2026-08-02T08:53:39.621Z",
+      "ping": 23,
+      "serverTime": 20,
+      "transferSize": 250000300
+    },
+    {
+      "bps": 510725842.6966292,
+      "bytes": 250000000,
+      "duration": 3916,
+      "measTime": "2026-08-02T08:53:43.905Z",
+      "ping": 23,
+      "serverTime": 18,
+      "transferSize": 250000300
+    },
+    {
+      "bps": 617856780.970034,
+      "bytes": 250000000,
+      "duration": 3237,
+      "measTime": "2026-08-02T08:53:47.533Z",
+      "ping": 23,
+      "serverTime": 36,
+      "transferSize": 250000300
+    }
+  ],
+  "h3Endpoint": false,
+  "summary": {
+    "downLoadedJitter": 50.1063829787234,
+    "downLoadedLatency": 173,
+    "download": 803222489.9598393,
+    "jitter": 1.3,
+    "latency": 23,
+    "totalDurationMs": 64502,
+    "upLoadedJitter": 16.897435897435898,
+    "upLoadedLatency": 25,
+    "upload": 386315815.7505693
+  },
+  "trace": {
+    "colo": "MUC",
+    "fl": "100f185",
+    "gateway": "off",
+    "h": "speed.cloudflare.com",
+    "http": "http/1.1",
+    "ip": "2a00:8c40:f03a:99fd::8cda:99fd",
+    "kex": "X25519MLKEM768",
+    "loc": "DE",
+    "rbi": "off",
+    "sliver": "none",
+    "sni": "plaintext",
+    "tls": "TLSv1.3",
+    "ts": "1785660827.000",
+    "uag": "Mozilla/5.0 (X11; Linux x86_64; rv:155.0) Gecko/20100101 Firefox/155.0",
+    "visit_scheme": "https",
+    "warp": "off"
+  },
+  "unloadedLatencyPoints": [
+    0,
+    24,
+    23,
+    22,
+    23,
+    22,
+    23,
+    23,
+    25,
+    24,
+    26,
+    25,
+    23,
+    24,
+    22,
+    23,
+    24,
+    23,
+    25,
+    24,
+    25,
+    23,
+    23,
+    23,
+    22,
+    23,
+    23,
+    24,
+    23,
+    23,
+    24,
+    23,
+    23,
+    23,
+    23,
+    24,
+    23,
+    23,
+    24,
+    24,
+    25,
+    25,
+    25,
+    24,
+    23,
+    23,
+    23,
+    24,
+    25,
+    24,
+    23
+  ],
+  "upLoadedLatencyPoints": [
+    83,
+    22,
+    25,
+    23,
+    25,
+    24,
+    25,
+    25,
+    24,
+    25,
+    24,
+    39,
+    24,
+    22,
+    25,
+    54,
+    25,
+    24,
+    24,
+    38,
+    57,
+    50,
+    24,
+    24,
+    25,
+    25,
+    59,
+    25,
+    50,
+    53,
+    24,
+    41,
+    51,
+    24,
+    49,
+    23,
+    57,
+    24,
+    96,
+    40
+  ],
+  "uploadBandwidth": 386315815.7505693,
+  "uploadBandwidthPoints": [
+    {
+      "bps": 9925925.925925924,
+      "bytes": 100000,
+      "duration": 81,
+      "measTime": "2026-08-02T08:52:49.729Z",
+      "ping": 41,
+      "serverTime": 40,
+      "transferSize": 300
+    },
+    {
+      "bps": 5153846.153846153,
+      "bytes": 100000,
+      "duration": 156,
+      "measTime": "2026-08-02T08:52:49.890Z",
+      "ping": 24,
+      "serverTime": 132,
+      "transferSize": 300
+    },
+    {
+      "bps": 22971428.571428567,
+      "bytes": 100000,
+      "duration": 35,
+      "measTime": "2026-08-02T08:52:49.928Z",
+      "ping": 25,
+      "serverTime": 10,
+      "transferSize": 300
+    },
+    {
+      "bps": 15461538.46153846,
+      "bytes": 100000,
+      "duration": 52,
+      "measTime": "2026-08-02T08:52:49.982Z",
+      "ping": 27,
+      "serverTime": 25,
+      "transferSize": 300
+    },
+    {
+      "bps": 24363636.36363636,
+      "bytes": 100000,
+      "duration": 33,
+      "measTime": "2026-08-02T08:52:50.018Z",
+      "ping": 24,
+      "serverTime": 9,
+      "transferSize": 300
+    },
+    {
+      "bps": 24363636.36363636,
+      "bytes": 100000,
+      "duration": 33,
+      "measTime": "2026-08-02T08:52:50.055Z",
+      "ping": 24,
+      "serverTime": 9,
+      "transferSize": 300
+    },
+    {
+      "bps": 21729729.729729727,
+      "bytes": 100000,
+      "duration": 37,
+      "measTime": "2026-08-02T08:52:50.094Z",
+      "ping": 24,
+      "serverTime": 13,
+      "transferSize": 300
+    },
+    {
+      "bps": 21157894.736842103,
+      "bytes": 100000,
+      "duration": 38,
+      "measTime": "2026-08-02T08:52:50.134Z",
+      "ping": 25,
+      "serverTime": 13,
+      "transferSize": 300
+    },
+    {
+      "bps": 25124999.999999996,
+      "bytes": 100000,
+      "duration": 32,
+      "measTime": "2026-08-02T08:52:50.170Z",
+      "ping": 23,
+      "serverTime": 9,
+      "transferSize": 300
+    },
+    {
+      "bps": 22333333.333333332,
+      "bytes": 100000,
+      "duration": 36,
+      "measTime": "2026-08-02T08:52:50.208Z",
+      "ping": 26,
+      "serverTime": 10,
+      "transferSize": 300
+    },
+    {
+      "bps": 21729729.729729727,
+      "bytes": 100000,
+      "duration": 37,
+      "measTime": "2026-08-02T08:52:50.249Z",
+      "ping": 26,
+      "serverTime": 11,
+      "transferSize": 300
+    },
+    {
+      "bps": 22333333.333333332,
+      "bytes": 100000,
+      "duration": 36,
+      "measTime": "2026-08-02T08:52:50.289Z",
+      "ping": 25,
+      "serverTime": 11,
+      "transferSize": 300
+    },
+    {
+      "bps": 11166666.666666666,
+      "bytes": 100000,
+      "duration": 72,
+      "measTime": "2026-08-02T08:52:50.364Z",
+      "ping": 26,
+      "serverTime": 46,
+      "transferSize": 300
+    },
+    {
+      "bps": 23647058.823529407,
+      "bytes": 100000,
+      "duration": 34,
+      "measTime": "2026-08-02T08:52:50.403Z",
+      "ping": 24,
+      "serverTime": 10,
+      "transferSize": 300
+    },
+    {
+      "bps": 18272727.27272727,
+      "bytes": 100000,
+      "duration": 44,
+      "measTime": "2026-08-02T08:52:50.450Z",
+      "ping": 25,
+      "serverTime": 19,
+      "transferSize": 300
+    },
+    {
+      "bps": 116521739.13043477,
+      "bytes": 1000000,
+      "duration": 69,
+      "measTime": "2026-08-02T08:52:50.526Z",
+      "ping": 26,
+      "serverTime": 43,
+      "transferSize": 300
+    },
+    {
+      "bps": 148888888.88888887,
+      "bytes": 1000000,
+      "duration": 54,
+      "measTime": "2026-08-02T08:52:50.586Z",
+      "ping": 26,
+      "serverTime": 28,
+      "transferSize": 300
+    },
+    {
+      "bps": 178666666.66666666,
+      "bytes": 1000000,
+      "duration": 45,
+      "measTime": "2026-08-02T08:52:50.637Z",
+      "ping": 26,
+      "serverTime": 19,
+      "transferSize": 300
+    },
+    {
+      "bps": 191428571.4285714,
+      "bytes": 1000000,
+      "duration": 42,
+      "measTime": "2026-08-02T08:52:50.686Z",
+      "ping": 25,
+      "serverTime": 17,
+      "transferSize": 300
+    },
+    {
+      "bps": 38653846.15384615,
+      "bytes": 1000000,
+      "duration": 208,
+      "measTime": "2026-08-02T08:52:50.898Z",
+      "ping": 26,
+      "serverTime": 182,
+      "transferSize": 300
+    },
+    {
+      "bps": 118235294.11764704,
+      "bytes": 1000000,
+      "duration": 68,
+      "measTime": "2026-08-02T08:52:50.975Z",
+      "ping": 27,
+      "serverTime": 41,
+      "transferSize": 300
+    },
+    {
+      "bps": 123692307.69230768,
+      "bytes": 1000000,
+      "duration": 65,
+      "measTime": "2026-08-02T08:52:51.045Z",
+      "ping": 26,
+      "serverTime": 39,
+      "transferSize": 300
+    },
+    {
+      "bps": 125625000.0,
+      "bytes": 1000000,
+      "duration": 64,
+      "measTime": "2026-08-02T08:52:51.113Z",
+      "ping": 25,
+      "serverTime": 39,
+      "transferSize": 300
+    },
+    {
+      "bps": 134000000.0,
+      "bytes": 1000000,
+      "duration": 60,
+      "measTime": "2026-08-02T08:52:51.178Z",
+      "ping": 25,
+      "serverTime": 35,
+      "transferSize": 300
+    },
+    {
+      "bps": 39801980.198019795,
+      "bytes": 1000000,
+      "duration": 202,
+      "measTime": "2026-08-02T08:52:51.384Z",
+      "ping": 26,
+      "serverTime": 176,
+      "transferSize": 300
+    },
+    {
+      "bps": 134000000.0,
+      "bytes": 1000000,
+      "duration": 60,
+      "measTime": "2026-08-02T08:52:51.450Z",
+      "ping": 25,
+      "serverTime": 35,
+      "transferSize": 300
+    },
+    {
+      "bps": 186976744.1860465,
+      "bytes": 1000000,
+      "duration": 43,
+      "measTime": "2026-08-02T08:52:51.499Z",
+      "ping": 25,
+      "serverTime": 18,
+      "transferSize": 300
+    },
+    {
+      "bps": 160159362.54980075,
+      "bytes": 10000000,
+      "duration": 502,
+      "measTime": "2026-08-02T08:52:54.463Z",
+      "ping": 44,
+      "serverTime": 458,
+      "transferSize": 300
+    },
+    {
+      "bps": 127215189.87341768,
+      "bytes": 10000000,
+      "duration": 632,
+      "measTime": "2026-08-02T08:52:55.123Z",
+      "ping": 41,
+      "serverTime": 591,
+      "transferSize": 300
+    },
+    {
+      "bps": 183143507.9726651,
+      "bytes": 10000000,
+      "duration": 439,
+      "measTime": "2026-08-02T08:52:55.587Z",
+      "ping": 42,
+      "serverTime": 397,
+      "transferSize": 300
+    },
+    {
+      "bps": 158267716.53543305,
+      "bytes": 10000000,
+      "duration": 508,
+      "measTime": "2026-08-02T08:52:56.121Z",
+      "ping": 40,
+      "serverTime": 468,
+      "transferSize": 300
+    },
+    {
+      "bps": 59821428.57142856,
+      "bytes": 10000000,
+      "duration": 1344,
+      "measTime": "2026-08-02T08:52:57.492Z",
+      "ping": 40,
+      "serverTime": 1304,
+      "transferSize": 300
+    },
+    {
+      "bps": 83575883.57588357,
+      "bytes": 10000000,
+      "duration": 962,
+      "measTime": "2026-08-02T08:52:58.479Z",
+      "ping": 41,
+      "serverTime": 921,
+      "transferSize": 300
+    },
+    {
+      "bps": 131803278.68852456,
+      "bytes": 10000000,
+      "duration": 610,
+      "measTime": "2026-08-02T08:52:59.123Z",
+      "ping": 40,
+      "serverTime": 570,
+      "transferSize": 300
+    },
+    {
+      "bps": 137671232.87671232,
+      "bytes": 10000000,
+      "duration": 584,
+      "measTime": "2026-08-02T08:52:59.731Z",
+      "ping": 35,
+      "serverTime": 549,
+      "transferSize": 300
+    },
+    {
+      "bps": 112040133.7792642,
+      "bytes": 25000000,
+      "duration": 1794,
+      "measTime": "2026-08-02T08:53:04.506Z",
+      "ping": 60,
+      "serverTime": 1734,
+      "transferSize": 300
+    },
+    {
+      "bps": 167919799.49874684,
+      "bytes": 25000000,
+      "duration": 1197,
+      "measTime": "2026-08-02T08:53:05.744Z",
+      "ping": 60,
+      "serverTime": 1137,
+      "transferSize": 300
+    },
+    {
+      "bps": 276859504.13223135,
+      "bytes": 25000000,
+      "duration": 726,
+      "measTime": "2026-08-02T08:53:06.514Z",
+      "ping": 59,
+      "serverTime": 667,
+      "transferSize": 300
+    },
+    {
+      "bps": 402805611.2224448,
+      "bytes": 25000000,
+      "duration": 499,
+      "measTime": "2026-08-02T08:53:07.054Z",
+      "ping": 56,
+      "serverTime": 443,
+      "transferSize": 300
+    },
+    {
+      "bps": 400398406.37450194,
+      "bytes": 25000000,
+      "duration": 502,
+      "measTime": "2026-08-02T08:53:07.600Z",
+      "ping": 62,
+      "serverTime": 440,
+      "transferSize": 300
+    },
+    {
+      "bps": 336683417.0854271,
+      "bytes": 25000000,
+      "duration": 597,
+      "measTime": "2026-08-02T08:53:08.240Z",
+      "ping": 71,
+      "serverTime": 526,
+      "transferSize": 300
+    },
+    {
+      "bps": 428571428.57142854,
+      "bytes": 25000000,
+      "duration": 469,
+      "measTime": "2026-08-02T08:53:08.759Z",
+      "ping": 59,
+      "serverTime": 410,
+      "transferSize": 300
+    },
+    {
+      "bps": 380681818.1818181,
+      "bytes": 25000000,
+      "duration": 528,
+      "measTime": "2026-08-02T08:53:09.332Z",
+      "ping": 64,
+      "serverTime": 464,
+      "transferSize": 300
+    },
+    {
+      "bps": 351091703.0567685,
+      "bytes": 50000000,
+      "duration": 1145,
+      "measTime": "2026-08-02T08:53:21.099Z",
+      "ping": 116,
+      "serverTime": 1029,
+      "transferSize": 300
+    },
+    {
+      "bps": 307574598.3167559,
+      "bytes": 50000000,
+      "duration": 1307,
+      "measTime": "2026-08-02T08:53:22.485Z",
+      "ping": 109,
+      "serverTime": 1198,
+      "transferSize": 300
+    },
+    {
+      "bps": 386167146.9740634,
+      "bytes": 50000000,
+      "duration": 1041,
+      "measTime": "2026-08-02T08:53:23.634Z",
+      "ping": 113,
+      "serverTime": 928,
+      "transferSize": 300
+    },
+    {
+      "bps": 386910490.8565928,
+      "bytes": 50000000,
+      "duration": 1039,
+      "measTime": "2026-08-02T08:53:24.780Z",
+      "ping": 116,
+      "serverTime": 923,
+      "transferSize": 300
+    },
+    {
+      "bps": 407707910.75050706,
+      "bytes": 50000000,
+      "duration": 986,
+      "measTime": "2026-08-02T08:53:25.862Z",
+      "ping": 120,
+      "serverTime": 866,
+      "transferSize": 300
+    },
+    {
+      "bps": 383222116.30123925,
+      "bytes": 50000000,
+      "duration": 1049,
+      "measTime": "2026-08-02T08:53:27.000Z",
+      "ping": 99,
+      "serverTime": 950,
+      "transferSize": 300
+    }
+  ],
+  "userAgent": "Mozilla/5.0 (X11; Linux x86_64; rv:155.0) Gecko/20100101 Firefox/155.0",
+  "proxy": {
+    "host": "p.m1.fastly-masque.net",
+    "httpVersion": "HTTP/2",
+    "port": 2499,
+    "type": "https"
+  },
+  "config": "3-proxy-h2connect"
+}
