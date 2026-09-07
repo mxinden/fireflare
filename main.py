@@ -17,6 +17,7 @@ import sys
 import tarfile
 import threading
 import time
+import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -49,9 +50,14 @@ FIREFOX_NIGHTLY_URL = (
 #   it every --vpn run silently measures a direct connection.
 # D304159 (Bug 2043768, "Honor http2/http3 prefs in Happy Eyeballs v3") is now in
 # mozilla-central, so it comes from base main rather than as a separate patch.
+# This build additionally carries the outbound QUIC datagram backpressure work
+# (Bug 1978893): a vendored neqo rev where send_datagram refuses instead of
+# head-dropping and raises OutgoingDatagramSpaceAvailable when the queue drains,
+# plus the Necko glue that maps the refusal to WOULD_BLOCK and re-drives
+# connect-udp streams. Aimed at MASQUE upload throughput (matrix config 5).
 FIREFOX_CUSTOM_URL = (
     "https://firefox-ci-tc.services.mozilla.com/api/queue/v1/task/"
-    "TR2POws1QXKQ3Ab-RyQNNA/runs/0/artifacts/public/build/target.tar.xz"
+    "TtSyDviYRty4SyvqqLWS2A/runs/0/artifacts/public/build/target.tar.xz"
 )
 # Origin whose h3 Alt-Svc we prime before a --vpn --h3 run (see prime_h3_altsvc).
 H3_PRIME_URL = "https://bastion.h3.speed.cloudflare.com/cdn-cgi/trace"
@@ -537,6 +543,10 @@ def run_once(firefox: Path, geckodriver: Path, base_url: str, *, vpn: bool,
         qs.append("h3=1")
     if debug:
         qs.append("debug=1")
+    # Surfaced in the page so the browser window says which matrix config is
+    # running instead of just "running @cloudflare/speedtest...".
+    if label:
+        qs.append(f"label={urllib.parse.quote(label)}")
     url = base_url + (f"?{'&'.join(qs)}" if qs else "")
     scrub_profile_test_stubs()
     # Set the h3 pref at launch (before any connection) so the proxy comes up on

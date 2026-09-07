@@ -1,6 +1,7 @@
 <!doctype html>
 <html><head><meta charset="utf-8"><title>fireflare</title></head>
 <body>
+<h1 id="config"></h1>
 <pre id="log">running @cloudflare/speedtest...</pre>
 <script type="module">
 import SpeedTest from 'https://esm.sh/@cloudflare/speedtest';
@@ -12,6 +13,20 @@ const log = document.getElementById('log');
 const params = new URLSearchParams(location.search);
 const h3 = params.has('h3');
 const debugMode = params.has('debug');
+// During a --matrix run each config gets its own Firefox session, so without
+// this the window gives no clue which of the five is in flight.
+const label = params.get('label');
+if (label) {
+  document.getElementById('config').textContent = label;
+  document.title = 'fireflare: ' + label;
+}
+// The measurements take a couple of minutes with no output of their own, so
+// tick an elapsed counter to show the run is alive.
+const startedAt = Date.now();
+const ticker = setInterval(() => {
+  const s = Math.round((Date.now() - startedAt) / 1000);
+  log.textContent = `running @cloudflare/speedtest... ${s}s`;
+}, 1000);
 const apiBase = h3 ? 'https://bastion.h3.speed.cloudflare.com' : 'https://speed.cloudflare.com';
 const endpointOverrides = h3 ? {
   downloadApiUrl: apiBase + '/__down',
@@ -63,6 +78,7 @@ const st = new SpeedTest({
   measurements,
 });
 st.onFinish = async (results) => {
+  clearInterval(ticker);
   const trace = await fetchTrace();
   const out = {
     trace,
@@ -81,6 +97,7 @@ st.onFinish = async (results) => {
   log.textContent = JSON.stringify(out, null, 2);
 };
 st.onError = (err) => {
+  clearInterval(ticker);
   window.__fireflare_error = String((err && err.message) || err);
   log.textContent = 'error: ' + window.__fireflare_error;
 };
