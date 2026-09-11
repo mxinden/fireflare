@@ -15,23 +15,11 @@ from pathlib import Path
 
 import plotly.graph_objects as go
 
+from facts import pretty_http, run_facts, short_name
+
 ROOT = Path(__file__).parent
 RESULTS = ROOT / "results"
 REPORT = RESULTS / "report.html"
-
-
-def pretty_http(v: str | None) -> str:
-    """Normalize a verbose HTTP-version label ('http/1.1', 'HTTP <= 1.1', …)."""
-    if not v:
-        return "-"
-    s = v.lower()
-    if "3" in s:
-        return "HTTP/3"
-    if "2" in s:
-        return "HTTP/2"
-    if "1" in s:
-        return "HTTP/1.1"
-    return v
 
 
 def pretty_ts(ts: str) -> str:
@@ -41,36 +29,6 @@ def pretty_ts(ts: str) -> str:
             "%Y-%m-%d %H:%M:%S UTC")
     except ValueError:
         return ts or "-"
-
-
-def run_facts(r: dict) -> dict:
-    """Derive the three connection dimensions from the run's recorded data, so
-    the report reflects what actually happened rather than the file name:
-      - transport: how Firefox reached the proxy (HTTP/2 vs HTTP/3), or direct
-      - tunnel: how the proxy reached the origin (CONNECT vs connect-udp/MASQUE)
-      - origin: the HTTP version negotiated with Cloudflare
-    """
-    origin = pretty_http((r.get("trace") or {}).get("http"))
-    proxy = r.get("proxy")
-    if not proxy:
-        return {"proxied": False, "transport": "Direct (no proxy)",
-                "tunnel": "-", "origin": origin, "host": None, "port": None}
-    # A MASQUE proxy carries the origin either way: classic CONNECT tunnels TCP
-    # (origin h1/h2); connect-udp/MASQUE tunnels QUIC (origin h3). Both share
-    # proxyInfo.type == "masque", so we infer the tunnel from the origin proto.
-    tunnel = "MASQUE connect-udp" if origin == "HTTP/3" else "CONNECT"
-    return {"proxied": True, "transport": proxy.get("httpVersion") or "?",
-            "tunnel": tunnel, "origin": origin,
-            "host": proxy.get("host"), "port": proxy.get("port")}
-
-
-def short_name(r: dict) -> str:
-    """Compact, data-derived name used in the metrics table and graph legends."""
-    f = r["facts"]
-    if not f["proxied"]:
-        return f"Direct · origin {f['origin']}"
-    tunnel = "MASQUE" if "udp" in f["tunnel"] else "CONNECT"
-    return f"Proxy {f['transport']} · {tunnel} · origin {f['origin']}"
 
 
 def load_runs() -> list[dict]:
@@ -83,7 +41,7 @@ def load_runs() -> list[dict]:
         prof = p.with_name(p.stem + ".profile.json")
         r["profile_file"] = prof.name if prof.exists() else None
         r["facts"] = run_facts(r)
-        r["name"] = short_name(r)
+        r["name"] = short_name(r["facts"])
         runs.append(r)
     return runs
 

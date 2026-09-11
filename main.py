@@ -27,6 +27,8 @@ from selenium import webdriver
 from selenium.webdriver.firefox.options import Options
 from selenium.webdriver.firefox.service import Service
 
+from facts import expected_facts, run_facts, short_name
+
 ROOT = Path(__file__).parent
 CACHE = ROOT / ".cache"
 RESULTS = ROOT / "results"
@@ -37,27 +39,66 @@ FIREFOX_NIGHTLY_URL = (
     "&os=linux64&lang=en-US"
 )
 # Build of the try push for IP-protection HTTP/3 experiments. Used by
-# `--custom-firefox`. Three patches on top of mozilla-central:
-# - Skip Alt-Svc route validation (Bug 2005211), which is what lets HTTP/3 reach
-#   the origin (connect-udp inner).
-# - Synthesize a MASQUE (connect-udp) primary entry in IPProtectionServerlist,
-#   gated on network.http.http3.enable, so disabling that pref leaves only the
-#   plain CONNECT entry and forces an HTTP/2 CONNECT proxy hop (matrix config 3).
-# - Proxy remote subresources of loopback-hosted pages: drops the
-#   loopback-principal exclusion in IPPExceptionsManager and keeps loopback
-#   destinations direct via a guard in IPPChannelFilter, so the speedtest page we
-#   serve from 127.0.0.1 has its Cloudflare requests actually proxied. Without
-#   it every --vpn run silently measures a direct connection.
-# D304159 (Bug 2043768, "Honor http2/http3 prefs in Happy Eyeballs v3") is now in
-# mozilla-central, so it comes from base main rather than as a separate patch.
-# This build additionally carries the outbound QUIC datagram backpressure work
-# (Bug 1978893): a vendored neqo rev where send_datagram refuses instead of
-# head-dropping and raises OutgoingDatagramSpaceAvailable when the queue drains,
-# plus the Necko glue that maps the refusal to WOULD_BLOCK and re-drives
-# connect-udp streams. Aimed at MASQUE upload throughput (matrix config 5).
+# `--custom-firefox`. Try push:
+# https://treeherder.mozilla.org/jobs?repo=try&revision=2c7a0fe6052b91a4311f21f40e66b79637e2169c
+#
+# Patch stack on top of mozilla-central, newest first:
+#   f6b3ab99ce  Bug 1978893, hold the refused connect-udp datagram instead of
+#               dropping it
+#   4d0dd73362  Bug 1978893, stop pacing the inner connect-udp connection
+#   37454fe621  Bug 1978893, tell the connect-udp profiler markers apart, and
+#               say why output stopped (session id + inner/outer/direct kind)
+#   b4aacbc8a3  Bug 1978893, resume the stalled connect-udp inner connection
+#               without the backstop timer (ResumeSend, not ForceSend)
+#   09fbe1d6c9  Bug 1978893, deliver inbound connect-udp datagrams in one
+#               batch per event drain
+#   af5f935e5d  Bug 1978893, vendor neqo from upstream now that the
+#               backpressure work landed there
+#   52f13814be  Widen connect-udp profiler instrumentation to the socket and
+#               drive layers
+#   180844e31b  Instrument the connect-udp datagram path with profiler markers
+#               (queue depth, stall/resume timing per datagram)
+#   6d5c9610c2  Proxy remote subresources of loopback-hosted pages via IP
+#               Protection
+#   a81c291851  Use MASQUE (connect-udp) for the outer connection to the VPN
+#               server
+#   6a04a5d2a5  Bug 2005211, skip Alt-Svc route validation for the h3 outer
+#               VPN connection, which is what carries HTTP/3 to the origin
+#   1365cea171  Bug 1978893, back-pressure the inner connect-udp connection
+#               instead of queuing datagrams without bound
+#   32a57510f1  Bug 1978893, vendor neqo with outbound QUIC datagram
+#               backpressure, adapt the neqo_glue FFI
+#
+# Changed since the previous pin (MeqgTf8TRtOSYzNfySmdUw, rev ae5955e6dae4):
+# f6b3ab99ce is new. The inner connection was losing exactly one datagram per
+# stall: SendWithAddress accepted a datagram and returned NS_OK with the queue
+# already full, so the inner connection looped once more, and the next datagram
+# hit the blocked path, was refused without being consumed, and got dropped by
+# the output loop. neqo had already counted it as sent, so every stall cost a
+# loss-recovery round and fed the congestion controller a loss that never
+# happened on the wire. It is now buffered and replayed on the next drain.
+# Note MasqueDatagramRefused therefore now means deferred and replayed, not
+# dropped: that marker's meaning changed relative to earlier profiles.
+#
+# Three stacked changes each plausibly move upload, and only the first has a
+# runtime switch: inner pacing off (network.http.http3.masque.inner_pacing
+# restores the old behavior when true, defaults to false), ResumeSend replacing
+# the 17 ms backstop timer, and the refused-datagram buffering above. The pref
+# A/B separates pacing from the other two, which cannot be isolated here.
+#
+# Also in the build: D304159 (Bug 2043768, "Honor http2/http3 prefs in Happy
+# Eyeballs v3"), and IPProtectionServerlist gates the synthesized
+# MASQUE-primary entry on network.http.http3.enable, so clearing that pref
+# leaves the plain CONNECT entry and forces an HTTP/2 CONNECT hop (matrix
+# config 3).
+#
+# All 28 jobs on the push are green, both builds included. The push builds
+# linux opt and debug only, no tests, so the known Alt-Svc xpcshell fallout of
+# 6a04a5d2a5 (test_bug1948203.js,
+# test_happy_eyeballs_altsvc_h3_only_claim.js) did not run here.
 FIREFOX_CUSTOM_URL = (
     "https://firefox-ci-tc.services.mozilla.com/api/queue/v1/task/"
-    "TtSyDviYRty4SyvqqLWS2A/runs/0/artifacts/public/build/target.tar.xz"
+    "Li3QyOgNTqe4ui_crwL8xg/runs/0/artifacts/public/build/target.tar.xz"
 )
 # Origin whose h3 Alt-Svc we prime before a --vpn --h3 run (see prime_h3_altsvc).
 H3_PRIME_URL = "https://bastion.h3.speed.cloudflare.com/cdn-cgi/trace"
@@ -538,13 +579,18 @@ def run_once(firefox: Path, geckodriver: Path, base_url: str, *, vpn: bool,
     """Run a single speed test in its own Firefox session and save the result.
     Returns the result dict (with the negotiated proxy hop + origin protocol,
     so callers can confirm what actually happened at runtime)."""
+    # What this run is expected to do, in the same words the report uses for
+    # what it turned out to do. A prediction until the result comes back, so
+    # both the console and the page say so.
+    expected = short_name(expected_facts(vpn=vpn, h3=h3, disable_h3=disable_h3))
     qs = []
     if h3:
         qs.append("h3=1")
     if debug:
         qs.append("debug=1")
-    # Surfaced in the page so the browser window says which matrix config is
-    # running instead of just "running @cloudflare/speedtest...".
+    # Surfaced in the page so the browser window says which config is running
+    # instead of just "running @cloudflare/speedtest...".
+    qs.append(f"desc={urllib.parse.quote(expected)}")
     if label:
         qs.append(f"label={urllib.parse.quote(label)}")
     url = base_url + (f"?{'&'.join(qs)}" if qs else "")
@@ -557,6 +603,7 @@ def run_once(firefox: Path, geckodriver: Path, base_url: str, *, vpn: bool,
                           extra_prefs={"network.http.http3.enable": not disable_h3})
     prof_tmp = None
     try:
+        print(f"Expecting: {expected}")
         print(f"Serving {url}")
         # Always flip the VPN toggle to the requested state, the persisted
         # profile may have left it on from a previous run.
@@ -611,8 +658,9 @@ def run_matrix(firefox: Path, geckodriver: Path, *, debug: bool,
     server, base_url = serve_page()
     summary = []
     try:
-        for label, kwargs, skip_reason in MATRIX:
-            print(f"\n===== matrix: {label} =====")
+        for i, (label, kwargs, skip_reason) in enumerate(MATRIX, start=1):
+            print(f"\n===== matrix {i}/{len(MATRIX)}: "
+                  f"{short_name(expected_facts(**kwargs))} ({label}) =====")
             if skip_reason:
                 print(f"SKIP {label}: {skip_reason}")
                 summary.append((label, "skipped", skip_reason))
@@ -634,11 +682,9 @@ def run_matrix(firefox: Path, geckodriver: Path, *, debug: bool,
             if result is None:
                 summary.append((label, "FAILED", "all attempts failed"))
                 continue
-            proxy = (result.get("proxy") or {}).get("httpVersion") or "-"
-            origin = (result.get("trace") or {}).get("http")
             down = result.get("downloadBandwidth") or 0
             up = result.get("uploadBandwidth") or 0
-            summary.append((label, f"proxy={proxy} origin={origin}",
+            summary.append((label, short_name(run_facts(result)),
                             f"down={down / 1e6:.1f}Mbps up={up / 1e6:.1f}Mbps"))
     finally:
         server.shutdown()
