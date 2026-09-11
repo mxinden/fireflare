@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import html
 import json
+import statistics
 from datetime import datetime
 from pathlib import Path
 
@@ -103,18 +104,69 @@ def run_sections(runs: list[dict]) -> str:
     return "".join(out)
 
 
+# @cloudflare/speedtest reports each latency sample as `ping`, which is
+# `ttfb - serverTime` floored at 0, where serverTime is Cloudflare's
+# self-reported handling time. That subtraction is meant to leave the network
+# round trip, but serverTime swings by tens of ms between consecutive identical
+# requests (24 -> 47 -> 128 ms observed within one run), and whenever it lands
+# above ttfb the sample underflows to exactly 0. A 0 ms round trip is
+# impossible, so those samples were reporting failure as speed.
+#
+# Use ttfb instead: `responseStart - requestStart`, straight from the browser's
+# ResourceTiming, nothing subtracted. It cannot underflow. It is not RTT, it is
+# RTT plus Cloudflare's pre-header work, so expect roughly 3-5x the RTT figure
+# speed.cloudflare.com shows (~50 ms here against a ~10 ms RTT). What it gives
+# is a number that is always real, and comparable across our configs, since
+# every config pays the same server-side term.
+
+# A transfer only counts as "load" if it lasted a while, so the library ignores
+# size buckets whose requests all finished faster than this when computing
+# latency under load. It is a floor on the transfer, not on the ping: at 300
+# Mbps a 100 kB request is done in ~3 ms and loads nothing, so only the 10 MB
+# and larger buckets qualify. Mirrors the library's `loadedRequestMinDuration`.
+LOADED_MIN_TRANSFER_MS = 250
+LOADED_LATENCY_MAX_POINTS = 50  # library's loadedLatencyMaxPoints, as we set it
+
+
+def ttfb_points(r: dict, kind: str) -> list[float]:
+    """Per-sample ttfb in ms for one of the three latency measurements.
+
+    `idle` reads the standalone latency measurement. `download`/`upload` read
+    the pings the library fires alongside each transfer, which it stores per
+    size bucket as `sideLatency`; mirror its own bucket selection so these line
+    up with the measurements it would have reported.
+    """
+    raw = r.get("raw") or {}
+    if kind == "idle":
+        timings = ((raw.get("latency") or {}).get("results") or {}).get("timings") or []
+        return [t["ttfb"] for t in timings if t.get("ttfb")]
+    pts: list[float] = []
+    for bucket in ((raw.get(kind) or {}).get("results") or {}).values():
+        timings = bucket.get("timings") or []
+        if not timings:
+            continue
+        if min(t.get("duration") or 0 for t in timings) < LOADED_MIN_TRANSFER_MS:
+            continue
+        pts += [t["ttfb"] for t in (bucket.get("sideLatency") or []) if t.get("ttfb")]
+    return pts[-LOADED_LATENCY_MAX_POINTS:]
+
+
 def metrics_table(runs: list[dict]) -> str:
     """Compact metrics-only table; qualitative details live in the run sections."""
     def num(r: dict, key: str, scale: float = 1.0) -> str:
         v = (r.get("summary") or {}).get(key)
         return "-" if v is None else f"{v / scale:.1f}"
+
+    def ttfb(r: dict, kind: str) -> str:
+        pts = ttfb_points(r, kind)
+        return f"{statistics.median(pts):.1f}" if pts else "-"
     cols = [
         ("Run", lambda r: r["name"]),
         ("Download (Mbps)", lambda r: num(r, "download", 1e6)),
         ("Upload (Mbps)",   lambda r: num(r, "upload", 1e6)),
-        ("Latency idle (ms)",   lambda r: num(r, "latency")),
-        ("Latency ↓load (ms)",  lambda r: num(r, "downLoadedLatency")),
-        ("Latency ↑load (ms)",  lambda r: num(r, "upLoadedLatency")),
+        ("TTFB idle (ms)",  lambda r: ttfb(r, "idle")),
+        ("TTFB ↓load (ms)", lambda r: ttfb(r, "download")),
+        ("TTFB ↑load (ms)", lambda r: ttfb(r, "upload")),
         ("Jitter (ms)",         lambda r: num(r, "jitter")),
     ]
     thead = "".join(f"<th>{html.escape(n)}</th>" for n, _ in cols)
@@ -147,21 +199,24 @@ def fig_bandwidth_boxes(runs: list[dict], points_key: str, title: str) -> go.Fig
 
 
 def fig_latency_boxes(runs: list[dict]) -> go.Figure:
+    # Same ttfb samples as the metrics table, so the distribution and the
+    # median in the table describe the same data.
     buckets = [
-        ("unloaded",        "unloadedLatencyPoints"),
-        ("during download", "downLoadedLatencyPoints"),
-        ("during upload",   "upLoadedLatencyPoints"),
+        ("unloaded",        "idle"),
+        ("during download", "download"),
+        ("during upload",   "upload"),
     ]
     fig = go.Figure()
     for r in runs:
         xs, ys = [], []
-        for label, key in buckets:
-            vals = r.get(key) or []
+        for label, kind in buckets:
+            vals = ttfb_points(r, kind)
             xs.extend([label] * len(vals))
             ys.extend(vals)
         fig.add_box(name=r["name"], x=xs, y=ys, boxpoints="all", jitter=0.3)
     fig.update_layout(
-        title="Latency", yaxis_title="ms", boxmode="group",
+        title="TTFB (request to first response byte)", yaxis_title="ms",
+        boxmode="group",
         xaxis=dict(categoryorder="array", categoryarray=[b[0] for b in buckets]),
     )
     return fig

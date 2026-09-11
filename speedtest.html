@@ -109,6 +109,12 @@ st.onFinish = async (results) => {
     userAgent: navigator.userAgent,
     h3Endpoint: h3,
     summary: results.getSummary(),
+    // The public point getters keep only `ping` (= ttfb - serverTime, floored
+    // at 0), which throws away the inputs and cannot represent a failed
+    // sample. `raw` carries the full per-sample timing objects, ttfb and
+    // serverTime included, for the idle pings and for the loaded pings that
+    // ride alongside each transfer. The report derives latency from ttfb.
+    raw: results.raw,
     downloadBandwidth: results.getDownloadBandwidth(),
     uploadBandwidth: results.getUploadBandwidth(),
     downloadBandwidthPoints: results.getDownloadBandwidthPoints(),
